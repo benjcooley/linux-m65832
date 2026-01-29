@@ -118,6 +118,10 @@
 #define SD_TIMEOUT			0x2C	/* Timeout value */
 #define SD_CLKDIV			0x30	/* SPI clock divisor */
 #define SD_FIFOCNT			0x34	/* FIFO word count */
+#define SD_DMA_ADDR			0x38	/* DMA address for block I/O */
+#define SD_DMA_CTRL			0x3C	/* DMA control */
+#define SD_CAPACITY_LO			0x40	/* Capacity in sectors (low) */
+#define SD_CAPACITY_HI			0x44	/* Capacity in sectors (high) */
 
 /* SD Control bits */
 #define SD_CTRL_ENABLE			(1 << 0)	/* Controller enable */
@@ -128,6 +132,7 @@
 #define SD_CTRL_ABORT			(1 << 5)	/* Abort operation */
 #define SD_CTRL_RESET_FIFO		(1 << 6)	/* Reset FIFO */
 #define SD_CTRL_IRQ_EN			(1 << 7)	/* Interrupt enable */
+#define SD_CTRL_DMA_EN			(1 << 8)	/* DMA enable */
 
 /* SD Status bits */
 #define SD_STATUS_PRESENT		(1 << 0)	/* Card present */
@@ -143,6 +148,10 @@
 #define SD_STATUS_TX_FULL		(1 << 10)	/* TX FIFO full */
 #define SD_STATUS_RX_EMPTY		(1 << 11)	/* RX FIFO empty */
 #define SD_STATUS_RX_FULL		(1 << 12)	/* RX FIFO full */
+#define SD_STATUS_DMA_DONE		(1 << 13)	/* DMA transfer complete */
+#define SD_STATUS_DRQ			(1 << 14)	/* Data request (PIO mode) */
+#define SD_STATUS_WRITABLE		(1 << 15)	/* Media is writable */
+#define SD_STATUS_IRQ			(1 << 16)	/* IRQ pending */
 
 /* SD Command register */
 #define SD_CMD_INDEX_MASK		0x3F		/* Command index (0-63) */
