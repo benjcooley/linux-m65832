@@ -28,18 +28,25 @@
 #define copy_user_page(to, from, vaddr, pg)	copy_page(to, from)
 
 /*
- * Page table entry types for type checking
+ * Page table entry types for type checking.
+ *
+ * M65832 uses 64-bit page table entries:
+ * - Bit 63: NX (No Execute)
+ * - Bits 62:12: Physical Page Number (52 bits)
+ * - Bits 11:0: Flags (Present, Writable, User, etc.)
+ *
+ * Each page table has 1024 entries × 8 bytes = 8KB (2 pages)
  */
 typedef struct {
-	unsigned long pte;
+	unsigned long long pte;
 } pte_t;
 
 typedef struct {
-	unsigned long pgd;
+	unsigned long long pgd;
 } pgd_t;
 
 typedef struct {
-	unsigned long pgprot;
+	unsigned long long pgprot;
 } pgprot_t;
 
 typedef struct page *pgtable_t;

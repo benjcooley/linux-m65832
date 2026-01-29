@@ -23,6 +23,10 @@
 
 /*
  * Page table dimensions
+ *
+ * M65832 uses 2-level page tables with 64-bit entries:
+ * - 1024 entries per table × 8 bytes = 8KB per table (2 pages)
+ * - Virtual address: [31:22] PGD index, [21:12] PTE index, [11:0] offset
  */
 #define PGDIR_SHIFT		22
 #define PGDIR_SIZE		(1UL << PGDIR_SHIFT)
@@ -31,29 +35,42 @@
 #define PTRS_PER_PGD		1024
 #define PTRS_PER_PTE		1024
 
-#define PGD_ORDER		0	/* PGD is one page */
-#define PTE_ORDER		0	/* PTE table is one page */
+/* Each table is 8KB (1024 × 8 bytes), requires 2 pages */
+#define PGD_ORDER		1	/* PGD is 2 pages (8KB) */
+#define PTE_ORDER		1	/* PTE table is 2 pages (8KB) */
 
 /*
- * Page table entry bits
+ * Page table entry bits (64-bit PTE)
+ *
+ * Bit 63:    NX (No Execute)
+ * Bits 62:12: Physical Page Number (52 bits for 64-bit PA)
+ * Bit 11:    Global - entry not flushed on ASID change
+ * Bit 10:    Dirty - set by hardware on write
+ * Bit 9:     Accessed - set by hardware on access
+ * Bits 8-5:  Reserved
+ * Bit 4:     PCD (Page Cache Disable)
+ * Bit 3:     PWT (Page Write-Through)
+ * Bit 2:     User - 1 = user accessible
+ * Bit 1:     Writable - 1 = read/write
+ * Bit 0:     Present - 1 = valid entry
  */
-#define _PAGE_PRESENT		(1 << 0)
-#define _PAGE_WRITE		(1 << 1)
-#define _PAGE_USER		(1 << 2)
-#define _PAGE_PWT		(1 << 3)	/* Write-through */
-#define _PAGE_PCD		(1 << 4)	/* Cache disable */
-#define _PAGE_ACCESSED		(1 << 5)
-#define _PAGE_DIRTY		(1 << 6)
-#define _PAGE_GLOBAL		(1 << 8)
-#define _PAGE_SPECIAL		(1 << 9)
-#define _PAGE_NO_EXEC		(1 << 10)
+#define _PAGE_PRESENT		(1ULL << 0)
+#define _PAGE_WRITE		(1ULL << 1)
+#define _PAGE_USER		(1ULL << 2)
+#define _PAGE_PWT		(1ULL << 3)	/* Write-through */
+#define _PAGE_PCD		(1ULL << 4)	/* Cache disable */
+#define _PAGE_ACCESSED		(1ULL << 9)	/* Set by hardware on access */
+#define _PAGE_DIRTY		(1ULL << 10)	/* Set by hardware on write */
+#define _PAGE_GLOBAL		(1ULL << 11)	/* Global (ignore ASID) */
+#define _PAGE_SPECIAL		(1ULL << 8)	/* Use reserved bit for special */
+#define _PAGE_NO_EXEC		(1ULL << 63)	/* No execute */
 
 /* Combined permission bits */
 #define _PAGE_TABLE		(_PAGE_PRESENT | _PAGE_WRITE | _PAGE_USER)
 #define _PAGE_CHG_MASK		(_PAGE_ACCESSED | _PAGE_DIRTY | _PAGE_SPECIAL)
 
-/* PFN mask - physical frame number */
-#define _PFN_MASK		(~((1UL << PAGE_SHIFT) - 1))
+/* PFN mask - physical frame number (bits 62:12, avoiding NX bit) */
+#define _PFN_MASK		(0x7FFFFFFFFFFFF000ULL)
 
 #ifndef __ASSEMBLY__
 
@@ -70,15 +87,16 @@ extern unsigned long empty_zero_page[PAGE_SIZE / sizeof(unsigned long)];
 
 /*
  * Page protection values
+ * Note: No _PAGE_NO_EXEC means page is executable
  */
 #define PAGE_NONE		__pgprot(0)
 #define PAGE_SHARED		__pgprot(_PAGE_PRESENT | _PAGE_WRITE | _PAGE_USER)
-#define PAGE_COPY		__pgprot(_PAGE_PRESENT | _PAGE_USER)
-#define PAGE_READONLY		__pgprot(_PAGE_PRESENT | _PAGE_USER)
-#define PAGE_KERNEL		__pgprot(_PAGE_PRESENT | _PAGE_WRITE | _PAGE_GLOBAL)
-#define PAGE_KERNEL_RO		__pgprot(_PAGE_PRESENT | _PAGE_GLOBAL)
+#define PAGE_COPY		__pgprot(_PAGE_PRESENT | _PAGE_USER | _PAGE_NO_EXEC)
+#define PAGE_READONLY		__pgprot(_PAGE_PRESENT | _PAGE_USER | _PAGE_NO_EXEC)
+#define PAGE_KERNEL		__pgprot(_PAGE_PRESENT | _PAGE_WRITE | _PAGE_GLOBAL | _PAGE_NO_EXEC)
+#define PAGE_KERNEL_RO		__pgprot(_PAGE_PRESENT | _PAGE_GLOBAL | _PAGE_NO_EXEC)
 #define PAGE_KERNEL_EXEC	__pgprot(_PAGE_PRESENT | _PAGE_WRITE | _PAGE_GLOBAL)
-#define PAGE_KERNEL_NOCACHE	__pgprot(_PAGE_PRESENT | _PAGE_WRITE | _PAGE_PCD | _PAGE_GLOBAL)
+#define PAGE_KERNEL_NOCACHE	__pgprot(_PAGE_PRESENT | _PAGE_WRITE | _PAGE_PCD | _PAGE_GLOBAL | _PAGE_NO_EXEC)
 
 /*
  * PGD operations
@@ -190,9 +208,10 @@ static inline pte_t pte_mkspecial(pte_t pte)
 
 /*
  * PFN and page conversions
+ * Note: We use 64-bit arithmetic for PTE values
  */
-#define pte_pfn(pte)		((pte_val(pte) & _PFN_MASK) >> PAGE_SHIFT)
-#define pfn_pte(pfn, prot)	__pte(((pfn) << PAGE_SHIFT) | pgprot_val(prot))
+#define pte_pfn(pte)		(unsigned long)(((pte_val(pte) & _PFN_MASK) >> PAGE_SHIFT))
+#define pfn_pte(pfn, prot)	__pte((((unsigned long long)(pfn)) << PAGE_SHIFT) | pgprot_val(prot))
 #define pte_page(pte)		pfn_to_page(pte_pfn(pte))
 
 #define mk_pte(page, prot)	pfn_pte(page_to_pfn(page), prot)
@@ -215,14 +234,15 @@ static inline void set_pte_at(struct mm_struct *mm, unsigned long addr,
 
 /*
  * Page table allocation
+ * Each table requires 2 pages (8KB) for 1024 × 8-byte entries
  */
 #define pte_alloc_one_kernel(mm)	\
-	((pte_t *)__get_free_page(GFP_KERNEL | __GFP_ZERO))
-#define pte_free_kernel(mm, pte)	free_page((unsigned long)(pte))
+	((pte_t *)__get_free_pages(GFP_KERNEL | __GFP_ZERO, PTE_ORDER))
+#define pte_free_kernel(mm, pte)	free_pages((unsigned long)(pte), PTE_ORDER)
 
 static inline pgtable_t pte_alloc_one(struct mm_struct *mm)
 {
-	struct page *page = alloc_page(GFP_KERNEL | __GFP_ZERO);
+	struct page *page = alloc_pages(GFP_KERNEL | __GFP_ZERO, PTE_ORDER);
 	if (!page)
 		return NULL;
 	return page;
@@ -230,7 +250,7 @@ static inline pgtable_t pte_alloc_one(struct mm_struct *mm)
 
 static inline void pte_free(struct mm_struct *mm, pgtable_t pte)
 {
-	__free_page(pte);
+	__free_pages(pte, PTE_ORDER);
 }
 
 /*
