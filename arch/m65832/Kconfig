@@ -145,10 +145,17 @@ menu "Platform options"
 
 config M65832_TIMER_FREQ
 	int "System timer frequency (Hz)"
-	default 100000000
+	default 50000000
 	help
 	  The frequency of the M65832 system timer in Hz.
-	  This should match your hardware configuration.
+	  Default is 50 MHz to match the typical FPGA clock.
+
+config M65832_CPU_FREQ
+	int "CPU clock frequency (Hz)"
+	default 50000000
+	help
+	  The CPU clock frequency in Hz.
+	  Default is 50 MHz for DE2-115 target.
 
 endmenu
 
@@ -164,8 +171,9 @@ config M65832_EARLY_PRINTK
 config M65832_EARLYCON_UART_ADDRESS
 	hex "Early console UART address"
 	depends on M65832_EARLY_PRINTK
-	default 0xFFFFF100
+	default 0x10006000
 	help
 	  Physical address of the UART for early console output.
+	  Default is 0x10006000 for the Milo832 SoC UART.
 
 endmenu
