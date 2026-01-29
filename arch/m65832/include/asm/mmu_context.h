@@ -94,7 +94,7 @@ static inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	*ASID_REG = asid;
 
 	/* Memory barrier */
-	asm volatile("fence" : : : "memory");
+	asm volatile("FENCE" : : : "memory");
 }
 
 /*

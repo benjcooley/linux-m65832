@@ -19,12 +19,12 @@
 void __delay(unsigned long loops)
 {
 	asm volatile(
-		"1:\n\t"
-		"dec a\n\t"		/* Decrement counter */
-		"bne 1b"		/* Loop if not zero */
+		".LDELAY:\n\t"
+		"DEC A\n\t"		/* Decrement counter */
+		"BNE .LDELAY"		/* Loop if not zero */
 		:
 		: "a" (loops)
-		: "memory"
+		: "cc"
 	);
 }
 EXPORT_SYMBOL(__delay);

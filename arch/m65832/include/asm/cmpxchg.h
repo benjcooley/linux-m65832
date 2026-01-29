@@ -7,6 +7,12 @@
  * M65832 provides:
  * - CAS instruction: Compare-And-Swap (atomic compare and exchange)
  * - LLI/SCI: Load-Linked Indexed / Store-Conditional Indexed
+ *
+ * CAS syntax: cas Rd, (Rs), Re, Rn
+ *   - Compare *Rs with Re
+ *   - If equal, store Rn to *Rs
+ *   - Load original value to Rd
+ *   - Sets Z flag if swap occurred
  */
 
 #ifndef _ASM_M65832_CMPXCHG_H
@@ -18,13 +24,8 @@
 /*
  * Compare and exchange for 32-bit values
  *
- * M65832 CAS instruction:
- * - Compares value at memory location with expected value
- * - If equal, stores new value and returns old value
- * - If not equal, returns current value without storing
- *
- * CAS A, addr - Compare A with [addr], if equal store X to [addr],
- *               always load [addr] to A
+ * Returns the original value at *ptr.
+ * If original == old, then *ptr is set to new.
  */
 static inline unsigned long __cmpxchg_u32(volatile unsigned long *ptr,
 					  unsigned long old,
@@ -34,17 +35,16 @@ static inline unsigned long __cmpxchg_u32(volatile unsigned long *ptr,
 
 	/*
 	 * M65832 CAS instruction:
-	 * Input: A = expected old value, X = new value, address
-	 * Output: A = actual old value (success if A unchanged)
+	 * cas ret, (ptr), old, new
+	 * - Compares *ptr with old
+	 * - If equal, stores new to *ptr
+	 * - Always loads original *ptr value to ret
 	 */
 	asm volatile(
-		"lda %2\n\t"		/* Load expected value to A */
-		"ldx %3\n\t"		/* Load new value to X */
-		"cas %1\n\t"		/* CAS: if [ptr]==A then [ptr]=X; A=[ptr] */
-		"sta %0"		/* Store result */
-		: "=m" (ret), "+m" (*ptr)
-		: "m" (old), "m" (new)
-		: "memory"
+		"CAS %0, (%1), %2, %3"
+		: "=r" (ret)
+		: "r" (ptr), "r" (old), "r" (new)
+		: "memory", "cc"
 	);
 
 	return ret;
@@ -52,26 +52,33 @@ static inline unsigned long __cmpxchg_u32(volatile unsigned long *ptr,
 
 /*
  * Compare and exchange for 16-bit values
+ * Note: M65832 CAS operates on 32-bit values, so we need to
+ * do a read-modify-write with proper masking
  */
 static inline unsigned short __cmpxchg_u16(volatile unsigned short *ptr,
 					   unsigned short old,
 					   unsigned short new)
 {
-	unsigned short ret;
+	volatile unsigned long *aligned_ptr;
+	unsigned long shift, mask;
+	unsigned long old32, new32, cur, ret;
 
-	asm volatile(
-		"rep #$20\n\t"		/* Set 16-bit accumulator mode */
-		"lda %2\n\t"
-		"ldx %3\n\t"
-		"cas %1\n\t"
-		"sta %0\n\t"
-		"rep #$00"		/* Restore 32-bit mode */
-		: "=m" (ret), "+m" (*ptr)
-		: "m" (old), "m" (new)
-		: "memory"
-	);
+	/* Align to 32-bit boundary */
+	aligned_ptr = (volatile unsigned long *)((unsigned long)ptr & ~3UL);
+	shift = ((unsigned long)ptr & 2) * 8;
+	mask = 0xFFFFUL << shift;
 
-	return ret;
+	do {
+		cur = *aligned_ptr;
+		if (((cur >> shift) & 0xFFFF) != old)
+			return (cur >> shift) & 0xFFFF;
+
+		old32 = cur;
+		new32 = (cur & ~mask) | ((unsigned long)new << shift);
+		ret = __cmpxchg_u32(aligned_ptr, old32, new32);
+	} while (ret != old32);
+
+	return old;
 }
 
 /*
@@ -81,21 +88,25 @@ static inline unsigned char __cmpxchg_u8(volatile unsigned char *ptr,
 					 unsigned char old,
 					 unsigned char new)
 {
-	unsigned char ret;
+	volatile unsigned long *aligned_ptr;
+	unsigned long shift, mask;
+	unsigned long old32, new32, cur, ret;
 
-	asm volatile(
-		"sep #$20\n\t"		/* Set 8-bit accumulator mode */
-		"lda %2\n\t"
-		"ldx %3\n\t"
-		"cas %1\n\t"
-		"sta %0\n\t"
-		"rep #$20"		/* Restore 32-bit mode */
-		: "=m" (ret), "+m" (*ptr)
-		: "m" (old), "m" (new)
-		: "memory"
-	);
+	aligned_ptr = (volatile unsigned long *)((unsigned long)ptr & ~3UL);
+	shift = ((unsigned long)ptr & 3) * 8;
+	mask = 0xFFUL << shift;
 
-	return ret;
+	do {
+		cur = *aligned_ptr;
+		if (((cur >> shift) & 0xFF) != old)
+			return (cur >> shift) & 0xFF;
+
+		old32 = cur;
+		new32 = (cur & ~mask) | ((unsigned long)new << shift);
+		ret = __cmpxchg_u32(aligned_ptr, old32, new32);
+	} while (ret != old32);
+
+	return old;
 }
 
 /*
@@ -133,11 +144,12 @@ static inline unsigned char __cmpxchg_u8(volatile unsigned char *ptr,
 static inline unsigned long __xchg_u32(volatile unsigned long *ptr,
 				       unsigned long new)
 {
-	unsigned long old;
+	unsigned long old, ret;
 
 	do {
 		old = *ptr;
-	} while (__cmpxchg_u32(ptr, old, new) != old);
+		ret = __cmpxchg_u32(ptr, old, new);
+	} while (ret != old);
 
 	return old;
 }

@@ -3,6 +3,11 @@
  * M65832 Linux
  *
  * Memory barrier definitions for the M65832 architecture.
+ *
+ * M65832 provides three barrier instructions:
+ * - fence  : Full memory barrier (read + write)
+ * - fencer : Read memory barrier
+ * - fencew : Write memory barrier
  */
 
 #ifndef _ASM_M65832_BARRIER_H
@@ -10,23 +15,14 @@
 
 #ifndef __ASSEMBLY__
 
-/*
- * M65832 memory barriers:
- * - FENCE  - Full memory barrier (read + write)
- * - FENCER - Read memory barrier
- * - FENCEW - Write memory barrier
- *
- * These are Extended ALU instructions with specific opcodes.
- */
-
 /* Full memory barrier */
-#define mb()	asm volatile("fence" : : : "memory")
+#define mb()	asm volatile("FENCE" : : : "memory")
 
 /* Read memory barrier */
-#define rmb()	asm volatile("fencer" : : : "memory")
+#define rmb()	asm volatile("FENCER" : : : "memory")
 
 /* Write memory barrier */
-#define wmb()	asm volatile("fencew" : : : "memory")
+#define wmb()	asm volatile("FENCEW" : : : "memory")
 
 /*
  * SMP barriers - same as regular barriers on M65832 since
@@ -37,7 +33,7 @@
 #define __smp_wmb()	wmb()
 
 /*
- * Compiler barrier
+ * Compiler barrier - prevents compiler reordering
  */
 #define barrier()	asm volatile("" : : : "memory")
 

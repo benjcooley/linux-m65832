@@ -3,6 +3,9 @@
  * M65832 Linux
  *
  * IRQ flag manipulation for the M65832 architecture.
+ *
+ * Uses SEI (Set Interrupt disable) and CLI (Clear Interrupt disable)
+ * instructions to control the I flag in the status register.
  */
 
 #ifndef _ASM_M65832_IRQFLAGS_H
@@ -14,23 +17,19 @@
 
 /*
  * Get current status register value
- * The status register is read via a special instruction or memory-mapped register
+ * PHP pushes P to stack, then we pop it to a register
  */
 static inline unsigned long arch_local_save_flags(void)
 {
 	unsigned long flags;
 
-	/*
-	 * M65832: Read status register
-	 * PHP pushes P to stack, then we pop it to a register
-	 */
 	asm volatile(
-		"php\n\t"
-		"pla\n\t"
-		"sta %0"
-		: "=m" (flags)
+		"PHP\n\t"
+		"PLA\n\t"
+		"STA %0"
+		: "=r" (flags)
 		:
-		: "memory"
+		: "a"
 	);
 
 	return flags;
@@ -42,7 +41,7 @@ static inline unsigned long arch_local_save_flags(void)
  */
 static inline void arch_local_irq_disable(void)
 {
-	asm volatile("sei" : : : "memory");
+	asm volatile("SEI" : : : "memory", "cc");
 }
 
 /*
@@ -51,7 +50,7 @@ static inline void arch_local_irq_disable(void)
  */
 static inline void arch_local_irq_enable(void)
 {
-	asm volatile("cli" : : : "memory");
+	asm volatile("CLI" : : : "memory", "cc");
 }
 
 /*
@@ -61,8 +60,15 @@ static inline unsigned long arch_local_irq_save(void)
 {
 	unsigned long flags;
 
-	flags = arch_local_save_flags();
-	arch_local_irq_disable();
+	asm volatile(
+		"PHP\n\t"
+		"SEI\n\t"
+		"PLA\n\t"
+		"STA %0"
+		: "=r" (flags)
+		:
+		: "a", "memory", "cc"
+	);
 
 	return flags;
 }
@@ -73,13 +79,22 @@ static inline unsigned long arch_local_irq_save(void)
 static inline void arch_local_irq_restore(unsigned long flags)
 {
 	/*
-	 * Restore the status register
-	 * We only care about the I bit
+	 * If the I bit was set (IRQs disabled), keep them disabled.
+	 * Otherwise enable them.
 	 */
-	if (flags & SR_IRQ_DISABLE)
-		arch_local_irq_disable();
-	else
-		arch_local_irq_enable();
+	asm volatile(
+		"LDA %0\n\t"
+		"AND #4\n\t"		/* Check I bit (bit 2) */
+		"BNE .LKEEP_DISABLED\n\t"
+		"CLI\n\t"
+		"BRA .LDONE\n\t"
+		".LKEEP_DISABLED:\n\t"
+		"SEI\n\t"
+		".LDONE:"
+		:
+		: "r" (flags)
+		: "a", "memory", "cc"
+	);
 }
 
 /*

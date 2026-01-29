@@ -25,7 +25,10 @@ static __always_inline struct task_struct *get_current(void)
 {
 	struct task_struct *current_task;
 
-	asm volatile("lda r25\n\tsta %0" : "=m" (current_task));
+	asm volatile(
+		"LD %0, R25"
+		: "=r" (current_task)
+	);
 
 	return current_task;
 }

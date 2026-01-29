@@ -34,7 +34,7 @@ static inline void local_flush_tlb_all(void)
 	/* Write any value to TLBFLUSH to flush entire TLB */
 	*TLB_FLUSH_ALL = 0;
 	/* Memory barrier to ensure TLB flush completes */
-	asm volatile("fence" : : : "memory");
+	asm volatile("FENCE" : : : "memory");
 }
 
 /*
@@ -45,7 +45,7 @@ static inline void local_flush_tlb_page(struct vm_area_struct *vma,
 {
 	/* Write the virtual address to TLBINVAL */
 	*TLB_INVAL_VA = addr;
-	asm volatile("fence" : : : "memory");
+	asm volatile("FENCE" : : : "memory");
 }
 
 /*
@@ -66,7 +66,7 @@ static inline void local_flush_tlb_range(struct vm_area_struct *vma,
 	for (addr = start; addr < end; addr += PAGE_SIZE)
 		*TLB_INVAL_VA = addr;
 
-	asm volatile("fence" : : : "memory");
+	asm volatile("FENCE" : : : "memory");
 }
 
 /*
@@ -76,7 +76,7 @@ static inline void local_flush_tlb_mm(struct mm_struct *mm)
 {
 	/* Write ASID to ASIDINVAL to flush all entries for this ASID */
 	*TLB_INVAL_ASID = mm->context.asid;
-	asm volatile("fence" : : : "memory");
+	asm volatile("FENCE" : : : "memory");
 }
 
 /*
@@ -95,7 +95,7 @@ static inline void local_flush_tlb_kernel_range(unsigned long start,
 	for (addr = start; addr < end; addr += PAGE_SIZE)
 		*TLB_INVAL_VA = addr;
 
-	asm volatile("fence" : : : "memory");
+	asm volatile("FENCE" : : : "memory");
 }
 
 /*

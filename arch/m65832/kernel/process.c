@@ -216,23 +216,19 @@ struct task_struct *__switch_to(struct task_struct *prev,
 	 * R25 = task_struct
 	 */
 	asm volatile(
-		"lda %0\n\t"
-		"sta r25\n\t"		/* current = next */
-		"lda %1\n\t"
-		"sta r24"		/* thread_info = next's thread_info */
+		"LD R25, %0\n\t"	/* current = next */
+		"LD R24, %1"		/* thread_info = next's thread_info */
 		:
-		: "m" (next), "m" (task_thread_info(next))
+		: "r" (next), "r" (task_thread_info(next))
 		: "memory"
 	);
 
 	/* Switch kernel stack pointer */
 	asm volatile(
-		"lda %1\n\t"
-		"sta %0\n\t"		/* Save prev's ksp */
-		"lda %2\n\t"
-		"tas"			/* Load next's ksp */
-		: "=m" (prev_thread->ksp)
-		: "m" (prev_thread->ksp), "m" (next_thread->ksp)
+		"LD %0, SP\n\t"		/* Save prev's ksp */
+		"LD SP, %1"		/* Load next's ksp */
+		: "=r" (prev_thread->ksp)
+		: "r" (next_thread->ksp)
 		: "memory"
 	);
 

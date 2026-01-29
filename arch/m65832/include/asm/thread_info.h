@@ -74,7 +74,10 @@ static inline struct thread_info *current_thread_info(void)
 	 * The thread_info is stored at the base of the kernel stack.
 	 * We keep a pointer to it in R24 for fast access.
 	 */
-	asm volatile("lda r24\n\tsta %0" : "=m" (ti) : : "memory");
+	asm volatile(
+		"LD %0, R24"
+		: "=r" (ti)
+	);
 
 	return ti;
 }
