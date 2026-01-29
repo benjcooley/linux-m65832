@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# M65832 Debugging Options
+#
+
+config EARLY_PRINTK
+	bool "Early printk support"
+	default y
+	help
+	  Say Y here to enable early_printk() output before the console
+	  driver is initialized. This is useful for debugging boot problems.
+
+config DEBUG_STACKOVERFLOW
+	bool "Check for stack overflows"
+	depends on DEBUG_KERNEL
+	help
+	  Check for stack overflow conditions during execution.
+
+config DEBUG_STACK_USAGE
+	bool "Stack utilization instrumentation"
+	depends on DEBUG_KERNEL
+	help
+	  Track stack utilization for debugging purposes.

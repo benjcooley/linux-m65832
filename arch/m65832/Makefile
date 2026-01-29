@@ -19,13 +19,9 @@ KBUILD_LDFLAGS	+= --gc-sections
 # -ffixed-r25: Reserve R25 for current task pointer
 KBUILD_CFLAGS	+= -pipe -ffreestanding
 KBUILD_CFLAGS	+= -fno-common
-KBUILD_CFLAGS	+= -msoft-float
 KBUILD_AFLAGS	+= -D__ASSEMBLY__
 
-# Enable hardware FPU support if configured
-ifeq ($(CONFIG_M65832_FPU),y)
-KBUILD_CFLAGS	+= -mhard-float
-endif
+# M65832 doesn't have FPU - no float flags needed
 
 # Architecture-specific includes
 KBUILD_CPPFLAGS	+= -I$(srctree)/arch/m65832/include
