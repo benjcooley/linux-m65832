@@ -17,22 +17,14 @@
 #include <asm/io.h>
 #include <asm/setup.h>
 #include <asm/irq.h>
+#include <asm/platform.h>
 
 /*
- * M65832 Timer registers
- * System timer at 0xFFFFF040-0xFFFFF048
+ * M65832 System Timer
+ * Located in the system register space at 0xFFFFF040
+ * Uses definitions from platform.h
  */
-#define TIMER_BASE		0xFFFFF040
-
-#define TIMER_CTRL		0x00	/* Control register */
-#define TIMER_CMP		0x04	/* Compare value */
-#define TIMER_COUNT		0x08	/* Current count (read-only) */
-
-/* Timer control bits */
-#define TIMER_CTRL_ENABLE	(1 << 0)	/* Enable timer */
-#define TIMER_CTRL_IRQ_EN	(1 << 1)	/* Enable interrupt */
-#define TIMER_CTRL_PERIODIC	(1 << 2)	/* Periodic mode */
-#define TIMER_CTRL_IRQ_PENDING	(1 << 3)	/* IRQ pending (write 1 to clear) */
+#define TIMER_BASE		M65832_SYSTIMER_CTRL
 
 static void __iomem *timer_base;
 static unsigned long timer_frequency;
@@ -71,7 +63,7 @@ static int m65832_timer_set_next_event(unsigned long delta,
 	writel(count + delta, timer_base + TIMER_CMP);
 
 	/* Enable one-shot mode */
-	writel(TIMER_CTRL_ENABLE | TIMER_CTRL_IRQ_EN, timer_base + TIMER_CTRL);
+	writel(TIMER_CTRL_EN | TIMER_CTRL_IE, timer_base + TIMER_CTRL);
 
 	return 0;
 }
@@ -90,7 +82,7 @@ static int m65832_timer_set_periodic(struct clock_event_device *evt)
 	writel(period, timer_base + TIMER_CMP);
 
 	/* Enable periodic mode */
-	writel(TIMER_CTRL_ENABLE | TIMER_CTRL_IRQ_EN | TIMER_CTRL_PERIODIC,
+	writel(TIMER_CTRL_EN | TIMER_CTRL_IE | TIMER_CTRL_PERIODIC,
 	       timer_base + TIMER_CTRL);
 
 	return 0;
@@ -102,7 +94,7 @@ static int m65832_timer_set_oneshot(struct clock_event_device *evt)
 		return -ENODEV;
 
 	/* Disable periodic mode */
-	writel(TIMER_CTRL_ENABLE | TIMER_CTRL_IRQ_EN, timer_base + TIMER_CTRL);
+	writel(TIMER_CTRL_EN | TIMER_CTRL_IE, timer_base + TIMER_CTRL);
 
 	return 0;
 }
@@ -132,9 +124,9 @@ static irqreturn_t m65832_timer_interrupt(int irq, void *dev_id)
 {
 	struct clock_event_device *evt = &m65832_clockevent;
 
-	/* Clear interrupt */
+	/* Clear interrupt flag (write 1 to IF bit to clear) */
 	if (timer_base)
-		writel(TIMER_CTRL_IRQ_PENDING, timer_base + TIMER_CTRL);
+		writel(TIMER_CTRL_IF, timer_base + TIMER_CTRL);
 
 	evt->event_handler(evt);
 

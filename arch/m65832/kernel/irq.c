@@ -17,18 +17,12 @@
 #include <asm/ptrace.h>
 #include <asm/irq.h>
 #include <asm/setup.h>
+#include <asm/platform.h>
 
 /*
  * M65832 Interrupt Controller registers
- * Base address: 0x10005000 (from memory map)
+ * Use definitions from platform.h
  */
-#define M65832_INTC_BASE	0x10005000
-
-#define INTC_PENDING		0x00	/* Pending interrupts (read) */
-#define INTC_ENABLE		0x04	/* Enable mask */
-#define INTC_DISABLE		0x08	/* Disable mask (write) */
-#define INTC_ACK		0x0C	/* Acknowledge (write IRQ number) */
-#define INTC_PRIORITY		0x10	/* Priority register */
 
 static void __iomem *intc_base;
 static struct irq_domain *m65832_irq_domain;
@@ -44,17 +38,33 @@ static struct irq_domain *m65832_irq_domain;
 static void m65832_irq_mask(struct irq_data *d)
 {
 	unsigned int irq = d->hwirq;
+	unsigned long flags;
+	u32 enable;
 
-	if (intc_base)
-		writel(1 << irq, intc_base + INTC_DISABLE);
+	if (!intc_base)
+		return;
+
+	local_irq_save(flags);
+	enable = readl(intc_base + INTC_ENABLE);
+	enable &= ~(1 << irq);
+	writel(enable, intc_base + INTC_ENABLE);
+	local_irq_restore(flags);
 }
 
 static void m65832_irq_unmask(struct irq_data *d)
 {
 	unsigned int irq = d->hwirq;
+	unsigned long flags;
+	u32 enable;
 
-	if (intc_base)
-		writel(1 << irq, intc_base + INTC_ENABLE);
+	if (!intc_base)
+		return;
+
+	local_irq_save(flags);
+	enable = readl(intc_base + INTC_ENABLE);
+	enable |= (1 << irq);
+	writel(enable, intc_base + INTC_ENABLE);
+	local_irq_restore(flags);
 }
 
 static void m65832_irq_ack(struct irq_data *d)
@@ -62,7 +72,7 @@ static void m65832_irq_ack(struct irq_data *d)
 	unsigned int irq = d->hwirq;
 
 	if (intc_base)
-		writel(irq, intc_base + INTC_ACK);
+		writel(1 << irq, intc_base + INTC_CLEAR);
 }
 
 static struct irq_chip m65832_irq_chip = {
@@ -97,14 +107,14 @@ void __init init_IRQ(void)
 	early_printk("M65832: Initializing interrupt controller\n");
 
 	/* Map interrupt controller registers */
-	intc_base = ioremap(M65832_INTC_BASE, 0x100);
+	intc_base = ioremap(M65832_INTC_BASE, M65832_PERIPH_SIZE);
 	if (!intc_base) {
 		pr_err("M65832: Failed to map interrupt controller\n");
 		return;
 	}
 
 	/* Disable all interrupts initially */
-	writel(0xFFFFFFFF, intc_base + INTC_DISABLE);
+	writel(0, intc_base + INTC_ENABLE);
 
 	/* Create IRQ domain */
 	m65832_irq_domain = irq_domain_add_linear(NULL, M65832_NR_IRQS,

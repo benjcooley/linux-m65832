@@ -16,6 +16,7 @@
 #include <asm/setup.h>
 #include <asm/page.h>
 #include <asm/processor.h>
+#include <asm/platform.h>
 #include <asm/sections.h>
 
 /* Boot information from bootloader */
@@ -30,6 +31,7 @@ unsigned long timer_freq = 100000000;
 
 /*
  * Early console output (before proper console is set up)
+ * Uses the M65832 UART at M65832_UART_BASE (0x10006000)
  */
 #ifdef CONFIG_M65832_EARLY_PRINTK
 static void __iomem *early_uart;
@@ -39,17 +41,26 @@ static void early_putchar(char c)
 	if (!early_uart)
 		return;
 
-	/* Wait for TX ready (bit 0 of status register) */
-	while (!(readb(early_uart + 4) & 0x01))
+	/* Wait for TX ready (UART_STATUS_TXRDY bit) */
+	while (!(readl(early_uart + UART_STATUS) & UART_STATUS_TXRDY))
 		;
 
-	/* Write character */
-	writeb(c, early_uart);
+	/* Write character to data register */
+	writel(c, early_uart + UART_DATA);
 }
 
 void __init setup_early_printk(void)
 {
-	early_uart = ioremap(CONFIG_M65832_EARLYCON_UART_ADDRESS, 16);
+	/*
+	 * Map UART registers. Early in boot we may not have full
+	 * ioremap, so we use the physical address directly if 
+	 * MMU is not yet enabled.
+	 */
+#ifdef CONFIG_M65832_EARLYCON_UART_ADDRESS
+	early_uart = ioremap(CONFIG_M65832_EARLYCON_UART_ADDRESS, M65832_PERIPH_SIZE);
+#else
+	early_uart = ioremap(M65832_UART_BASE, M65832_PERIPH_SIZE);
+#endif
 }
 
 void early_printk(const char *fmt, ...)
