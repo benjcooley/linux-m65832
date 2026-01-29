@@ -1,0 +1,171 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# M65832 Architecture Kconfig
+#
+# For a description of the syntax of this configuration file,
+# see Documentation/kbuild/kconfig-language.rst.
+#
+
+config M65832
+	def_bool y
+	select ARCH_32BIT_OFF_T
+	select ARCH_HAS_DMA_SET_UNCACHED
+	select ARCH_HAS_SYNC_DMA_FOR_DEVICE
+	select COMMON_CLK
+	select GENERIC_ATOMIC64
+	select GENERIC_CLOCKEVENTS
+	select GENERIC_CPU_DEVICES
+	select GENERIC_CSUM
+	select GENERIC_HWEIGHT
+	select GENERIC_IOREMAP
+	select GENERIC_IRQ_CHIP
+	select GENERIC_IRQ_MULTI_HANDLER
+	select GENERIC_IRQ_PROBE
+	select GENERIC_IRQ_SHOW
+	select GENERIC_LIB_ASHLDI3
+	select GENERIC_LIB_ASHRDI3
+	select GENERIC_LIB_LSHRDI3
+	select GENERIC_LIB_MULDI3
+	select GENERIC_PCI_IOMAP
+	select GENERIC_SCHED_CLOCK
+	select GENERIC_SMP_IDLE_THREAD
+	select GENERIC_TIME_VSYSCALL
+	select HAVE_ARCH_TRACEHOOK
+	select HAVE_MEMBLOCK
+	select HAVE_REGS_AND_STACK_ACCESS_API
+	select IRQ_DOMAIN
+	select MODULES_USE_ELF_RELA
+	select OF
+	select OF_EARLY_FLATTREE
+	select SET_FS
+	select SPARSE_IRQ
+	select STACKTRACE_SUPPORT
+	select TRACE_IRQFLAGS_SUPPORT
+	help
+	  The M65832 is a 32-bit RISC processor based on the 6502/65816
+	  instruction set architecture, extended with modern features
+	  including a full MMU, supervisor/user modes, and atomic operations.
+
+config CPU_LITTLE_ENDIAN
+	def_bool y
+
+config MMU
+	def_bool y
+
+config NO_IOPORT_MAP
+	def_bool y
+
+config LOCKDEP_SUPPORT
+	def_bool y
+
+config RWSEM_GENERIC_SPINLOCK
+	def_bool y
+
+config GENERIC_CALIBRATE_DELAY
+	def_bool y
+
+config GENERIC_BUG
+	def_bool y
+
+config FIX_EARLYCON_MEM
+	def_bool y
+
+config ZONE_DMA
+	def_bool y
+
+#
+# Processor type and features
+#
+menu "Processor type and features"
+
+choice
+	prompt "Subarchitecture"
+	default M65832_GENERIC
+
+config M65832_GENERIC
+	bool "Generic M65832"
+	help
+	  Generic M65832 architecture for emulator and FPGA targets.
+
+endchoice
+
+config M65832_FPU
+	bool "FPU support"
+	default y
+	help
+	  Enable hardware floating-point support. The M65832 FPU provides
+	  16 64-bit floating-point registers (F0-F15) with IEEE 754
+	  single and double precision support.
+
+	  Say Y if your M65832 implementation includes the FPU.
+	  Say N to use soft-float for all floating-point operations.
+
+config NR_CPUS
+	int
+	default "1"
+
+config CMDLINE
+	string "Default kernel command string"
+	default "console=ttyM65832,115200"
+	help
+	  On some systems the boot loader is unable to pass arguments to
+	  the kernel. For such systems, you can supply command-line
+	  options at build time by entering them here.
+
+config CMDLINE_FORCE
+	bool "Always use the default kernel command string"
+	depends on CMDLINE != ""
+	default n
+	help
+	  Always use the default kernel command string, ignoring any
+	  command line passed by the boot loader.
+
+source "kernel/Kconfig.hz"
+
+endmenu
+
+menu "Memory configuration"
+
+config PAGE_OFFSET
+	hex "Virtual address of kernel memory start"
+	default 0x80000000
+	help
+	  This is the virtual address where kernel memory (low memory)
+	  begins. Addresses below this are user space.
+
+config PHYS_OFFSET
+	hex "Physical address of RAM start"
+	default 0x00000000
+	help
+	  This is the physical address where RAM begins on your system.
+
+endmenu
+
+menu "Platform options"
+
+config M65832_TIMER_FREQ
+	int "System timer frequency (Hz)"
+	default 100000000
+	help
+	  The frequency of the M65832 system timer in Hz.
+	  This should match your hardware configuration.
+
+endmenu
+
+menu "Debugging options"
+
+config M65832_EARLY_PRINTK
+	bool "Early printk support"
+	default y
+	help
+	  Enable early console output before the normal console driver
+	  is initialized. This is useful for debugging early boot issues.
+
+config M65832_EARLYCON_UART_ADDRESS
+	hex "Early console UART address"
+	depends on M65832_EARLY_PRINTK
+	default 0xFFFFF100
+	help
+	  Physical address of the UART for early console output.
+
+endmenu
