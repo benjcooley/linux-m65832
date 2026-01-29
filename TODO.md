@@ -192,16 +192,25 @@ Last Updated: 2026-01-28
 | Phase 1: Bootstrap | 🟢 Complete | 80+ files created |
 | Phase 2: Boot | 🟡 In Progress | head.S, entry.S skeleton |
 | Phase 3: Exceptions | 🟡 In Progress | traps.c, entry.S skeleton |
-| Phase 4: Memory | 🟡 In Progress | pgtable.h, init.c, fault.c |
+| Phase 4: Memory | 🟢 Updated | 64-bit PTEs, 8KB page tables |
 | Phase 5: Process | 🟡 In Progress | process.c, signal.c |
-| Phase 6: Timer | 🟡 In Progress | time.c skeleton |
-| Phase 7: Drivers | ⬜ Not Started | |
-| Phase 8: Build | 🟡 In Progress | Kconfig, Makefiles done |
+| Phase 6: Timer | 🟢 Updated | time.c with platform.h |
+| Phase 7: Drivers | 🟡 In Progress | platform.h, IRQ, UART |
+| Phase 8: Build | 🟢 Updated | Kconfig, defconfig updated |
 | Phase 9: Testing | ⬜ Not Started | Need LLVM toolchain test |
 | Phase 10: Userspace | ⬜ Not Started | musl fork created |
 
+### Recent Changes (2026-01-28)
+- Fixed inline assembly to use uppercase instructions (FENCE, CAS, LD, etc.)
+- Added platform.h with complete Milo832 SoC memory map
+- Fixed 64-bit page table entries (8KB per table, 1024 × 8-byte entries)
+- Updated IRQ controller driver to use platform.h definitions
+- Updated timer driver to use correct system register addresses
+- Fixed Kconfig defaults for timer/CPU frequency (50 MHz)
+- Fixed early console UART address (0x10006000)
+
 ### File Statistics
-- Total arch/m65832 files: ~80
-- Headers: ~50
+- Total arch/m65832 files: ~82
+- Headers: ~52
 - C source: ~16
 - Assembly: 3
