@@ -1,7 +1,15 @@
 # M65832 Peripheral Specification
 
 Hardware register definitions for UART and SD Card controllers.
-These specifications define the MMIO interface for both VHDL/FPGA and C emulator implementations.
+These specifications define the MMIO interface for VHDL/FPGA and C emulator implementations.
+
+**Supported Platforms:**
+- DE25-Nano (Intel Agilex 5 E-Series)
+- KV260 (AMD Xilinx Zynq UltraScale+)
+- DE2-115 (Intel Cyclone IV) - future
+
+The register interface is identical across all platforms. Platform-specific
+differences are handled in the VHDL top-level and pin assignments.
 
 ## 1. UART Controller
 
@@ -64,21 +72,25 @@ Bits [31:16]: Reserved
 
 ### 1.6 VHDL Implementation Notes
 
-```vhdl
--- SPI interface to board UART (directly from FPGA pins)
--- DE2-115: UART_TXD (GPIO_0[0]), UART_RXD (GPIO_0[1])
--- DE25-Nano: USB-C UART pins
+The UART core is platform-independent. Pin mappings differ per board:
 
+| Platform | UART TX | UART RX | Notes |
+|----------|---------|---------|-------|
+| DE25-Nano | USB-C UART | USB-C UART | Via FTDI chip |
+| KV260 | PMOD J2[0] | PMOD J2[1] | Or use PS UART via AXI |
+| DE2-115 | GPIO_0[0] | GPIO_0[1] | Direct FPGA pins |
+
+```vhdl
 entity m65832_uart is
     generic (
-        CLK_FREQ    : integer := 50_000_000;
+        CLK_FREQ    : integer := 50_000_000;  -- Platform-specific
         FIFO_DEPTH  : integer := 16
     );
     port (
         clk         : in  std_logic;
         rst_n       : in  std_logic;
         
-        -- CPU bus interface
+        -- CPU bus interface (platform-independent)
         cs          : in  std_logic;
         addr        : in  std_logic_vector(3 downto 0);
         we          : in  std_logic;
@@ -88,7 +100,7 @@ entity m65832_uart is
         -- Interrupt output
         irq         : out std_logic;
         
-        -- UART pins
+        -- UART pins (directly connected in top-level)
         uart_tx     : out std_logic;
         uart_rx     : in  std_logic
     );
@@ -239,29 +251,25 @@ For 50 MHz system clock:
 
 ### 2.8 VHDL Implementation Notes
 
-```vhdl
--- DE2-115 SD Card signals (directly from FPGA pins)
--- directly from FPGA pins)
--- directly from FPGA pins)
--- directly from FPGA pins)
--- SD_CLK  : SPI clock
--- SD_CMD  : MOSI (directly from FPGA pins)
--- SD_DAT0 : MISO (directly from FPGA pins)
--- SD_DAT3 : Chip select (directly from FPGA pins)
--- directly from FPGA pins)
--- SD_WP_N : Write protect (directly from FPGA pins)
--- directly from FPGA pins)
+The SD card controller uses SPI mode. Pin mappings per platform:
 
+| Platform | SD_CLK | SD_MOSI | SD_MISO | SD_CS | SD_CD | Notes |
+|----------|--------|---------|---------|-------|-------|-------|
+| DE25-Nano | GPIO | GPIO | GPIO | GPIO | GPIO | Via PMOD or GPIO header |
+| KV260 | PMOD | PMOD | PMOD | PMOD | PMOD | PMOD SD card adapter |
+| DE2-115 | SD_CLK | SD_CMD | SD_DAT0 | SD_DAT3 | SD_WP_N | Native SD slot |
+
+```vhdl
 entity m65832_sdcard is
     generic (
-        CLK_FREQ    : integer := 50_000_000;
-        FIFO_DEPTH  : integer := 512  -- Bytes (1 block)
+        CLK_FREQ    : integer := 50_000_000;  -- Platform-specific
+        FIFO_DEPTH  : integer := 512          -- Bytes (1 block)
     );
     port (
         clk         : in  std_logic;
         rst_n       : in  std_logic;
         
-        -- CPU bus interface
+        -- CPU bus interface (platform-independent)
         cs          : in  std_logic;
         addr        : in  std_logic_vector(5 downto 0);
         we          : in  std_logic;
@@ -271,14 +279,14 @@ entity m65832_sdcard is
         -- Interrupt output
         irq         : out std_logic;
         
-        -- SPI signals to SD card
+        -- SPI signals to SD card (directly connected in top-level)
         sd_clk      : out std_logic;
         sd_mosi     : out std_logic;
         sd_miso     : in  std_logic;
         sd_cs_n     : out std_logic;
         
-        -- Card detect (directly from FPGA pins directly from FPGA directly from FPGA
-        sd_cd       : in  std_logic   -- directly from FPGA pins (directly from FPGA
+        -- Card detect
+        sd_cd       : in  std_logic
     );
 end entity;
 ```
@@ -316,9 +324,69 @@ end entity;
 
 ---
 
-## 3. C Emulator Integration
+## 3. Platform Configuration
 
-Both peripherals should be implemented in the C emulator to match the VHDL behavior exactly:
+### 3.1 Clock Frequencies
+
+| Platform | CPU Clock | Timer Clock | UART Clock | Notes |
+|----------|-----------|-------------|------------|-------|
+| Emulator | Variable | Variable | N/A | Host-speed simulation |
+| DE25-Nano | 50 MHz | 50 MHz | 50 MHz | Can scale to 100+ MHz |
+| KV260 | 100 MHz | 100 MHz | 100 MHz | Uses PS PLL |
+| DE2-115 | 50 MHz | 50 MHz | 50 MHz | Cyclone IV limit |
+
+### 3.2 Memory Configuration
+
+| Platform | Main RAM | Type | Bus Width | Notes |
+|----------|----------|------|-----------|-------|
+| Emulator | 256 MB | Virtual | 32-bit | Host memory |
+| DE25-Nano | 128 MB | SDRAM | 16-bit | Also 1GB LPDDR4 |
+| KV260 | 4 GB | DDR4 | 64-bit | Via PS AXI |
+| DE2-115 | 128 MB | SDRAM | 32-bit | Primary RAM |
+
+### 3.3 Top-Level VHDL Structure
+
+Each platform has its own top-level wrapper that instantiates the common cores:
+
+```
+syn/
+├── de25/
+│   ├── m65832_de25_top.vhd      -- DE25-Nano top-level
+│   ├── m65832_de25.qpf          -- Quartus project
+│   └── m65832_de25.qsf          -- Pin assignments
+├── kv260/
+│   ├── m65832_kv260_top.vhd     -- KV260 top-level
+│   ├── m65832_kv260.xpr         -- Vivado project
+│   └── m65832_kv260.xdc         -- Pin constraints
+├── de2_115/
+│   ├── m65832_de2_115_top.vhd   -- DE2-115 top-level
+│   ├── m65832_de2_115.qpf       -- Quartus project
+│   └── m65832_de2_115.qsf       -- Pin assignments
+└── common/
+    ├── m65832_core.vhd          -- CPU core
+    ├── m65832_mmu.vhd           -- MMU
+    ├── m65832_uart.vhd          -- UART (platform-independent)
+    ├── m65832_sdcard.vhd        -- SD card (platform-independent)
+    ├── m65832_timer.vhd         -- Timer
+    └── m65832_intc.vhd          -- Interrupt controller
+```
+
+### 3.4 KV260-Specific Notes
+
+The KV260 has a Processing System (PS) with ARM cores. Options:
+
+1. **PL-only**: M65832 runs entirely in PL, PS unused
+2. **PS-assisted**: PS handles boot, M65832 runs in PL
+3. **AXI bridge**: PS provides DDR/UART access via AXI
+
+For initial Linux bring-up, PL-only is recommended. The PS can be used
+later for debugging or boot assistance.
+
+---
+
+## 4. C Emulator Integration
+
+The emulator must precisely match the VHDL peripheral behavior:
 
 ```c
 // emulator/peripherals/uart.c
@@ -363,7 +431,7 @@ void sdcard_tick(sdcard_state_t *sd);
 
 ---
 
-## 4. Linux Driver Notes
+## 5. Linux Driver Notes
 
 The Linux kernel will use these register definitions from `platform.h`:
 
@@ -395,7 +463,7 @@ static void early_putchar(char c) {
 
 ---
 
-## 5. Testing Checklist
+## 6. Testing Checklist
 
 ### UART:
 - [ ] TX single byte at 115200 baud

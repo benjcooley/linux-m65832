@@ -79,15 +79,41 @@ config ZONE_DMA
 menu "Processor type and features"
 
 choice
-	prompt "Subarchitecture"
-	default M65832_GENERIC
+	prompt "Target Platform"
+	default M65832_PLATFORM_EMULATOR
 
-config M65832_GENERIC
-	bool "Generic M65832"
+config M65832_PLATFORM_EMULATOR
+	bool "Emulator"
 	help
-	  Generic M65832 architecture for emulator and FPGA targets.
+	  Run on the M65832 C emulator. This is the default for development
+	  and testing before moving to FPGA hardware.
+
+config M65832_PLATFORM_DE25
+	bool "DE25-Nano (Intel Agilex 5)"
+	help
+	  Terasic DE25-Nano board with Intel Agilex 5 E-Series FPGA.
+	  Features: LPDDR4 1GB, SDRAM 128MB, USB-C UART.
+
+config M65832_PLATFORM_KV260
+	bool "KV260 (AMD Xilinx Zynq UltraScale+)"
+	help
+	  AMD Xilinx Kria KV260 Vision AI Starter Kit.
+	  Features: DDR4 4GB, quad-core ARM Cortex-A53 PS.
+
+config M65832_PLATFORM_DE2_115
+	bool "DE2-115 (Intel Cyclone IV)"
+	help
+	  Terasic DE2-115 board with Intel Cyclone IV FPGA.
+	  Features: SDRAM 128MB, SD card slot, VGA output.
 
 endchoice
+
+config M65832_PLATFORM
+	string
+	default "emulator" if M65832_PLATFORM_EMULATOR
+	default "de25" if M65832_PLATFORM_DE25
+	default "kv260" if M65832_PLATFORM_KV260
+	default "de2_115" if M65832_PLATFORM_DE2_115
 
 config M65832_FPU
 	bool "FPU support"
