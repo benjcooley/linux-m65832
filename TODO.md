@@ -26,22 +26,27 @@ Last updated: 2026-01-28
 - [x] `asm/setup.h` - Setup declarations
 - [x] `asm/io.h` - I/O accessors
 - [x] `asm/mmu.h` - MMU definitions
-- [ ] `asm/pgtable.h` - Page table operations
-- [ ] `asm/tlbflush.h` - TLB operations
-- [ ] `asm/mmu_context.h` - MMU context switch
-- [ ] `asm/current.h` - Current task access
-- [ ] `asm/switch_to.h` - Context switch
-- [ ] `asm/syscall.h` - Syscall definitions
-- [ ] `asm/bitops.h` - Bit operations
-- [ ] `asm/cache.h` - Cache parameters
-- [ ] `asm/spinlock.h` - Spinlock implementation
-- [ ] `asm/timex.h` - Timer definitions
-- [ ] `asm/elf.h` - ELF definitions
-- [ ] `asm/unistd.h` - Syscall numbers
-- [ ] `asm/uaccess.h` - User access functions
-- [ ] `asm/string.h` - Optimized string functions
-- [ ] `asm/delay.h` - Delay functions
-- [ ] `asm/irq.h` - IRQ numbers and macros
+- [x] `asm/pgtable.h` - Page table operations
+- [x] `asm/tlbflush.h` - TLB operations
+- [x] `asm/mmu_context.h` - MMU context switch
+- [x] `asm/current.h` - Current task access
+- [x] `asm/switch_to.h` - Context switch
+- [x] `asm/syscall.h` - Syscall definitions
+- [x] `asm/bitops.h` - Bit operations
+- [x] `asm/cache.h` - Cache parameters
+- [x] `asm/spinlock.h` - Spinlock implementation
+- [x] `asm/timex.h` - Timer definitions
+- [x] `asm/elf.h` - ELF definitions
+- [x] `asm/unistd.h` - Syscall numbers
+- [x] `asm/uaccess.h` - User access functions
+- [x] `asm/string.h` - Optimized string functions
+- [x] `asm/delay.h` - Delay functions
+- [x] `asm/irq.h` - IRQ numbers and macros
+- [x] `asm/futex.h` - Futex operations
+- [x] `asm/pgalloc.h` - Page table allocation
+- [x] `asm/stacktrace.h` - Stack trace support
+- [x] `asm/memory.h` - Memory layout
+- [x] `asm/Kbuild` - Generic header mappings
 
 ### Phase 1: UAPI Headers
 - [x] `uapi/asm/ptrace.h` - User ptrace definitions
@@ -63,26 +68,27 @@ Last updated: 2026-01-28
 - [x] `entry.S` - Exception entry (skeleton)
 - [x] `setup.c` - Architecture setup (skeleton)
 - [x] `traps.c` - Exception handling (skeleton)
-- [ ] `irq.c` - IRQ management
-- [ ] `process.c` - Process management
-- [ ] `signal.c` - Signal handling
-- [ ] `ptrace.c` - Ptrace support
-- [ ] `time.c` - Timer handling
-- [ ] `sys_m65832.c` - Arch-specific syscalls
+- [x] `irq.c` - IRQ management
+- [x] `process.c` - Process management
+- [x] `signal.c` - Signal handling
+- [x] `ptrace.c` - Ptrace support
+- [x] `time.c` - Timer handling
+- [x] `sys_m65832.c` - Arch-specific syscalls
+- [x] `stacktrace.c` - Stack trace support
 - [ ] `module.c` - Module support
 
 ### mm/
 - [x] `Makefile` - Build rules
-- [x] `fault.c` - Page fault handler (skeleton)
-- [ ] `init.c` - Memory initialization
-- [ ] `ioremap.c` - I/O remapping
-- [ ] `tlb.c` - TLB management
+- [x] `fault.c` - Page fault handler
+- [x] `init.c` - Memory initialization
+- [x] `ioremap.c` - I/O remapping
+- [x] `tlb.c` - TLB management
 
 ### lib/
 - [x] `Makefile` - Build rules
-- [ ] `delay.c` - Delay functions
-- [ ] `memcpy.c` - Optimized memcpy
-- [ ] `memset.c` - Optimized memset
+- [x] `delay.c` - Delay functions
+- [x] `memcpy.c` - Optimized memcpy
+- [x] `memset.c` - Optimized memset
 
 ### boot/
 - [x] `Makefile` - Build rules
@@ -173,3 +179,29 @@ Register window mode (R=1) maps DP addresses to R0-R63.
 2. FPU context save/restore details
 3. Interrupt controller register interface
 4. Timer register interface details
+
+---
+
+## Status Tracking
+
+Last Updated: 2026-01-28
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 0: Toolchain | 🟡 In Progress | LLVM backend exists |
+| Phase 1: Bootstrap | 🟢 Complete | 80+ files created |
+| Phase 2: Boot | 🟡 In Progress | head.S, entry.S skeleton |
+| Phase 3: Exceptions | 🟡 In Progress | traps.c, entry.S skeleton |
+| Phase 4: Memory | 🟡 In Progress | pgtable.h, init.c, fault.c |
+| Phase 5: Process | 🟡 In Progress | process.c, signal.c |
+| Phase 6: Timer | 🟡 In Progress | time.c skeleton |
+| Phase 7: Drivers | ⬜ Not Started | |
+| Phase 8: Build | 🟡 In Progress | Kconfig, Makefiles done |
+| Phase 9: Testing | ⬜ Not Started | Need LLVM toolchain test |
+| Phase 10: Userspace | ⬜ Not Started | musl fork created |
+
+### File Statistics
+- Total arch/m65832 files: ~80
+- Headers: ~50
+- C source: ~16
+- Assembly: 3
