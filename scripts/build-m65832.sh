@@ -10,6 +10,12 @@
 #   - GNU Make 4.0+ (gmake on macOS)
 #   - On macOS: brew install make
 #
+# macOS Note:
+#   Building Linux host tools on macOS has compatibility issues.
+#   For reliable builds on macOS, use Docker:
+#     ./scripts/docker/docker-build.sh image
+#     ./scripts/docker/docker-build.sh build
+#
 
 set -e
 
@@ -71,12 +77,6 @@ setup_macos_compat() {
         local compat_dir="${KERNEL_DIR}/scripts/include"
         mkdir -p "$compat_dir"
         
-        # Create elf.h if missing
-        if [ ! -f "$compat_dir/elf.h" ]; then
-            echo "Creating macOS ELF compatibility header..."
-            # This will be created by the main build process
-        fi
-        
         # Create byteswap.h if missing  
         if [ ! -f "$compat_dir/byteswap.h" ]; then
             echo "Creating macOS byteswap compatibility header..."
@@ -91,37 +91,38 @@ setup_macos_compat() {
 EOF
         fi
         
-        HOSTCC_FLAGS="-I${compat_dir}"
-    else
-        HOSTCC_FLAGS=""
+        echo ""
+        echo "WARNING: Building on macOS has compatibility issues with host tools."
+        echo "For reliable builds, use Docker: ./scripts/docker/docker-build.sh"
+        echo ""
     fi
 }
 
-# Common make arguments
-make_args() {
-    echo "ARCH=m65832"
-    echo "LLVM=1"
-    echo "LLVM_IAS=1"
-    echo "CC=${LLVM_DIR}/m65832-linux-clang"
-    echo "LD=${LLVM_DIR}/ld.lld"
-    echo "AR=${LLVM_DIR}/llvm-ar"
-    echo "NM=${LLVM_DIR}/llvm-nm"
-    echo "STRIP=${LLVM_DIR}/llvm-strip"
-    echo "OBJCOPY=${LLVM_DIR}/llvm-objcopy"
-    echo "OBJDUMP=${LLVM_DIR}/llvm-objdump"
-    echo "READELF=${LLVM_DIR}/llvm-readelf"
+# Build kernel using make
+do_make() {
+    local target="${1:-}"
+    local compat_dir="${KERNEL_DIR}/scripts/include"
     
-    if [[ "$(uname)" == "Darwin" ]]; then
-        echo "HOSTCC=/usr/bin/clang ${HOSTCC_FLAGS}"
-        echo "HOSTCXX=/usr/bin/clang++ ${HOSTCC_FLAGS}"
-    fi
+    # Base make arguments  
+    $MAKE ARCH=m65832 LLVM=1 LLVM_IAS=1 \
+        CC="${LLVM_DIR}/m65832-linux-clang" \
+        LD="${LLVM_DIR}/ld.lld" \
+        AR="${LLVM_DIR}/llvm-ar" \
+        NM="${LLVM_DIR}/llvm-nm" \
+        STRIP="${LLVM_DIR}/llvm-strip" \
+        OBJCOPY="${LLVM_DIR}/llvm-objcopy" \
+        OBJDUMP="${LLVM_DIR}/llvm-objdump" \
+        READELF="${LLVM_DIR}/llvm-readelf" \
+        HOSTCC="/usr/bin/clang -I${compat_dir}" \
+        HOSTCXX="/usr/bin/clang++ -I${compat_dir}" \
+        $target
 }
 
 # Run defconfig
 do_config() {
     echo "Configuring kernel..."
     cd "$KERNEL_DIR"
-    $MAKE $(make_args) defconfig
+    do_make defconfig
     echo ""
     echo "Configuration complete. Run '$0 build' to compile."
 }
@@ -130,7 +131,7 @@ do_config() {
 do_menuconfig() {
     echo "Running menuconfig..."
     cd "$KERNEL_DIR"
-    $MAKE $(make_args) menuconfig
+    do_make menuconfig
 }
 
 # Build kernel
@@ -148,7 +149,7 @@ do_build() {
     JOBS=${JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}
     echo "Using $JOBS parallel jobs"
     
-    $MAKE $(make_args) -j$JOBS
+    do_make "-j$JOBS"
     
     echo ""
     echo "Build complete!"
@@ -162,7 +163,7 @@ do_build() {
 do_clean() {
     echo "Cleaning build..."
     cd "$KERNEL_DIR"
-    $MAKE $(make_args) clean
+    do_make clean
 }
 
 # Deep clean

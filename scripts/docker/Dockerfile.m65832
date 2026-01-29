@@ -1,0 +1,39 @@
+# Dockerfile for building M65832 Linux kernel
+# Uses pre-built LLVM-M65832 toolchain
+
+FROM ubuntu:22.04
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    flex \
+    bison \
+    bc \
+    libssl-dev \
+    libelf-dev \
+    libncurses-dev \
+    git \
+    cmake \
+    ninja-build \
+    python3 \
+    curl \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up work directory
+WORKDIR /build
+
+# The LLVM toolchain and kernel source will be mounted at runtime
+# /llvm-m65832 - LLVM toolchain
+# /linux - Linux kernel source
+
+ENV LLVM=/llvm-m65832/build/bin/
+ENV PATH="${LLVM}:${PATH}"
+
+# Create wrapper script for M65832 clang
+RUN mkdir -p /usr/local/bin && \
+    echo '#!/bin/bash\nexec /llvm-m65832/build/bin/clang --target=m65832-unknown-linux "$@"' > /usr/local/bin/m65832-linux-clang && \
+    chmod +x /usr/local/bin/m65832-linux-clang
+
+# Default command builds the kernel
+CMD ["bash", "-c", "cd /linux && make ARCH=m65832 LLVM=1 CC=m65832-linux-clang LD=${LLVM}ld.lld AR=${LLVM}llvm-ar NM=${LLVM}llvm-nm STRIP=${LLVM}llvm-strip OBJCOPY=${LLVM}llvm-objcopy OBJDUMP=${LLVM}llvm-objdump READELF=${LLVM}llvm-readelf -j$(nproc)"]

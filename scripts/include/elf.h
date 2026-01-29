@@ -134,11 +134,134 @@
 #define R_386_PC32	2
 
 /* Relocation types - ARM */
-#define R_ARM_NONE	0
-#define R_ARM_ABS32	2
-#define R_ARM_REL32	3
-#define R_ARM_MOVW_ABS_NC 43
-#define R_ARM_MOVT_ABS	44
+#define R_ARM_NONE		0
+#define R_ARM_PC24		1
+#define R_ARM_ABS32		2
+#define R_ARM_REL32		3
+#define R_ARM_CALL		28
+#define R_ARM_JUMP24		29
+#define R_ARM_THM_PC22		10
+#define R_ARM_THM_JUMP24	30
+#define R_ARM_THM_MOVW_ABS_NC	47
+#define R_ARM_THM_MOVT_ABS	48
+#define R_ARM_THM_JUMP19	51
+#define R_ARM_MOVW_ABS_NC	43
+#define R_ARM_MOVT_ABS		44
+
+/* Relocation types - MIPS */
+#define R_MIPS_NONE		0
+#define R_MIPS_16		1
+#define R_MIPS_32		2
+#define R_MIPS_REL32		3
+#define R_MIPS_26		4
+#define R_MIPS_HI16		5
+#define R_MIPS_LO16		6
+#define R_MIPS_GPREL16		7
+#define R_MIPS_LITERAL		8
+#define R_MIPS_GOT16		9
+#define R_MIPS_PC16		10
+#define R_MIPS_CALL16		11
+#define R_MIPS_GPREL32		12
+#define R_MIPS_64		18
+
+/* Relocation types - x86_64 */
+#define R_X86_64_NONE		0
+#define R_X86_64_64		1
+#define R_X86_64_PC32		2
+#define R_X86_64_GOT32		3
+#define R_X86_64_PLT32		4
+#define R_X86_64_32		10
+#define R_X86_64_32S		11
+
+/* Relocation types - AArch64 */
+#define R_AARCH64_NONE			0
+#define R_AARCH64_ABS64			257
+#define R_AARCH64_ABS32			258
+#define R_AARCH64_ABS16			259
+#define R_AARCH64_PREL64		260
+#define R_AARCH64_PREL32		261
+#define R_AARCH64_PREL16		262
+#define R_AARCH64_MOVW_UABS_G0		263
+#define R_AARCH64_MOVW_UABS_G0_NC	264
+#define R_AARCH64_MOVW_UABS_G1		265
+#define R_AARCH64_MOVW_UABS_G1_NC	266
+#define R_AARCH64_MOVW_UABS_G2		267
+#define R_AARCH64_MOVW_UABS_G2_NC	268
+#define R_AARCH64_MOVW_UABS_G3		269
+#define R_AARCH64_ADR_GOT_PAGE		311
+#define R_AARCH64_LD64_GOT_LO12_NC	312
+#define R_AARCH64_CALL26		283
+#define R_AARCH64_JUMP26		282
+#define R_AARCH64_ADR_PREL_PG_HI21	275
+#define R_AARCH64_ADR_PREL_PG_HI21_NC	276
+#define R_AARCH64_ADD_ABS_LO12_NC	277
+#define R_AARCH64_LDST8_ABS_LO12_NC	278
+#define R_AARCH64_LDST16_ABS_LO12_NC	284
+#define R_AARCH64_LDST32_ABS_LO12_NC	285
+#define R_AARCH64_LDST64_ABS_LO12_NC	286
+
+/* Relocation types - PowerPC */
+#define R_PPC_NONE		0
+#define R_PPC_ADDR32		1
+#define R_PPC_ADDR24		2
+#define R_PPC_ADDR16		3
+#define R_PPC_ADDR16_LO		4
+#define R_PPC_ADDR16_HI		5
+#define R_PPC_ADDR16_HA		6
+#define R_PPC_ADDR14		7
+#define R_PPC_REL24		10
+#define R_PPC_REL32		26
+
+/* Relocation types - PowerPC64 */
+#define R_PPC64_NONE		0
+#define R_PPC64_ADDR32		1
+#define R_PPC64_ADDR24		2
+#define R_PPC64_ADDR16		3
+#define R_PPC64_ADDR16_LO	4
+#define R_PPC64_ADDR16_HI	5
+#define R_PPC64_ADDR16_HA	6
+#define R_PPC64_REL24		10
+#define R_PPC64_REL32		26
+#define R_PPC64_ADDR64		38
+#define R_PPC64_TOC16		47
+#define R_PPC64_TOC16_LO	48
+#define R_PPC64_TOC16_HI	49
+#define R_PPC64_TOC16_HA	50
+#define R_PPC64_TOC		51
+#define R_PPC64_REL64		44
+
+/* Relocation types - SPARC */
+#define R_SPARC_NONE		0
+#define R_SPARC_32		3
+#define R_SPARC_HI22		9
+#define R_SPARC_LO10		12
+#define R_SPARC_WDISP30		7
+#define R_SPARC_64		32
+
+/* Relocation types - RISC-V */
+#define R_RISCV_NONE		0
+#define R_RISCV_32		1
+#define R_RISCV_64		2
+#define R_RISCV_BRANCH		16
+#define R_RISCV_JAL		17
+#define R_RISCV_CALL		18
+#define R_RISCV_CALL_PLT	19
+#define R_RISCV_PCREL_HI20	23
+#define R_RISCV_PCREL_LO12_I	24
+#define R_RISCV_PCREL_LO12_S	25
+#define R_RISCV_HI20		26
+#define R_RISCV_LO12_I		27
+#define R_RISCV_LO12_S		28
+
+/* Relocation types - LoongArch */
+#define R_LARCH_NONE		0
+#define R_LARCH_32		1
+#define R_LARCH_64		2
+#define R_LARCH_B26		66
+#define R_LARCH_ABS_HI20	64
+#define R_LARCH_ABS_LO12	65
+#define R_LARCH_PCALA_HI20	71
+#define R_LARCH_PCALA_LO12	72
 
 /* 32-bit ELF structures */
 typedef uint32_t Elf32_Addr;
