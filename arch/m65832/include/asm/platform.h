@@ -102,7 +102,7 @@
 #define INTC_PRIORITY			0x10	/* Priority of highest pending */
 
 /*
- * SD Card Controller Register Offsets
+ * SD Card Controller Register Offsets (SPI mode)
  */
 #define SD_CTRL				0x00	/* Control register */
 #define SD_STATUS			0x04	/* Status register */
@@ -112,17 +112,57 @@
 #define SD_RESP1			0x14	/* Response word 1 */
 #define SD_RESP2			0x18	/* Response word 2 */
 #define SD_RESP3			0x1C	/* Response word 3 */
-#define SD_DATA				0x20	/* Data register */
-#define SD_BLKSIZE			0x24	/* Block size */
+#define SD_DATA				0x20	/* Data register (FIFO) */
+#define SD_BLKSIZE			0x24	/* Block size (default 512) */
 #define SD_BLKCNT			0x28	/* Block count */
 #define SD_TIMEOUT			0x2C	/* Timeout value */
+#define SD_CLKDIV			0x30	/* SPI clock divisor */
+#define SD_FIFOCNT			0x34	/* FIFO word count */
+
+/* SD Control bits */
+#define SD_CTRL_ENABLE			(1 << 0)	/* Controller enable */
+#define SD_CTRL_CARD_SEL		(1 << 1)	/* Assert chip select */
+#define SD_CTRL_START_CMD		(1 << 2)	/* Start command */
+#define SD_CTRL_START_RD		(1 << 3)	/* Start block read */
+#define SD_CTRL_START_WR		(1 << 4)	/* Start block write */
+#define SD_CTRL_ABORT			(1 << 5)	/* Abort operation */
+#define SD_CTRL_RESET_FIFO		(1 << 6)	/* Reset FIFO */
+#define SD_CTRL_IRQ_EN			(1 << 7)	/* Interrupt enable */
 
 /* SD Status bits */
 #define SD_STATUS_PRESENT		(1 << 0)	/* Card present */
-#define SD_STATUS_READY			(1 << 1)	/* Card ready */
-#define SD_STATUS_BUSY			(1 << 2)	/* Transfer in progress */
+#define SD_STATUS_READY			(1 << 1)	/* Controller ready */
+#define SD_STATUS_BUSY			(1 << 2)	/* Operation in progress */
 #define SD_STATUS_ERROR			(1 << 3)	/* Error occurred */
-#define SD_STATUS_COMPLETE		(1 << 4)	/* Transfer complete */
+#define SD_STATUS_CRC_ERR		(1 << 4)	/* CRC error */
+#define SD_STATUS_TIMEOUT_ERR		(1 << 5)	/* Timeout error */
+#define SD_STATUS_CMD_ERR		(1 << 6)	/* Command error */
+#define SD_STATUS_FIFO_ERR		(1 << 7)	/* FIFO error */
+#define SD_STATUS_COMPLETE		(1 << 8)	/* Operation complete */
+#define SD_STATUS_TX_EMPTY		(1 << 9)	/* TX FIFO empty */
+#define SD_STATUS_TX_FULL		(1 << 10)	/* TX FIFO full */
+#define SD_STATUS_RX_EMPTY		(1 << 11)	/* RX FIFO empty */
+#define SD_STATUS_RX_FULL		(1 << 12)	/* RX FIFO full */
+
+/* SD Command register */
+#define SD_CMD_INDEX_MASK		0x3F		/* Command index (0-63) */
+#define SD_CMD_RESP_NONE		(0 << 6)	/* No response */
+#define SD_CMD_RESP_R1			(1 << 6)	/* R1 response */
+#define SD_CMD_RESP_R2			(2 << 6)	/* R2 response (136-bit) */
+#define SD_CMD_RESP_R1B			(3 << 6)	/* R1 with busy */
+
+/* Common SD commands */
+#define SD_CMD0_GO_IDLE			0
+#define SD_CMD8_SEND_IF_COND		8
+#define SD_CMD9_SEND_CSD		9
+#define SD_CMD10_SEND_CID		10
+#define SD_CMD17_READ_SINGLE		17
+#define SD_CMD18_READ_MULTIPLE		18
+#define SD_CMD24_WRITE_SINGLE		24
+#define SD_CMD25_WRITE_MULTIPLE		25
+#define SD_CMD55_APP_CMD		55
+#define SD_CMD58_READ_OCR		58
+#define SD_ACMD41_SD_SEND_OP_COND	41
 
 /*
  * Timer Register Offsets (system timer in SYSREG area)
