@@ -53,7 +53,7 @@ ENTRY(_start)
 	/*
 	 * Set up kernel stack (physical address).
 	 */
-	LDA #init_stack_top
+	LDA #__end_init_stack
 	VIRT_TO_PHYS
 	TCS
 
@@ -109,7 +109,7 @@ start_kernel_virtual:
 	/*
 	 * Running at virtual addresses. Set up virtual stack.
 	 */
-	LDA #init_stack_top
+	LDA #__end_init_stack
 	TCS
 
 	/*
@@ -463,7 +463,7 @@ kernel_pte1:
 periph_pte:
 	.space	8192			/* 1024 x 8-byte PTE: peripheral identity map */
 
-	.align 12
-init_stack:
-	.space	8192			/* 8KB kernel stack */
-init_stack_top:
+	/* init_stack is provided by INIT_TASK_DATA in the linker script.
+	 * __start_init_stack = init_stack = init_thread_union
+	 * __end_init_stack = init_stack + THREAD_SIZE
+	 * SP should be set to __end_init_stack (stack grows down). */
