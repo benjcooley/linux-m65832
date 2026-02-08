@@ -12,16 +12,13 @@
  *   SP  = 0x0000FFFF (boot ROM stack)
  *   B   = 0 (flat addressing)
  *
- * Memory layout:
- *   Virtual 0x80000000+ = Physical PHYS_OFFSET+ (kernel)
- *   LOAD_OFFSET = PAGE_OFFSET - PHYS_OFFSET = 0x7FF00000
+ * IMPORTANT: M65832 MMU uses 64-bit page table entries (8 bytes each):
+ *   PGD: 1024 entries x 8 bytes = 8KB
+ *   PTE: 1024 entries x 8 bytes = 8KB
+ *   L1 index: bits 31:22, L2 index: bits 21:12, offset: bits 11:0
  *
  * Before MMU is enabled, all symbol references must be converted:
  *   physical_addr = virtual_addr - LOAD_OFFSET
- *
- * Register-indirect addressing is used for all memory access since
- * standard 'abs' mode is B-relative (16-bit offset from B register).
- * LDA #symbol gives a 32-bit immediate (virtual address).
  */
 
 #include <linux/linkage.h>
@@ -29,16 +26,10 @@
 #include <asm/page.h>
 #include <asm/ptrace.h>
 
-/*
- * LOAD_OFFSET: subtract from virtual address to get physical.
- * PAGE_OFFSET = 0x80000000, PHYS_OFFSET = 0x00100000
- * LOAD_OFFSET = 0x7FF00000
- */
 #define LOAD_OFFSET	(PAGE_OFFSET - PHYS_OFFSET)
 
 /*
- * Macro: convert virtual address in A to physical address.
- * Used before MMU is enabled.
+ * Convert virtual address in A to physical address.
  */
 .macro VIRT_TO_PHYS
 	SEC
@@ -49,129 +40,31 @@
 
 ENTRY(_start)
 	/*
-	 * IRQs already disabled by boot ROM (I=1).
-	 * B=0 set by boot ROM (flat addressing for abs mode).
-	 *
 	 * Save boot info pointer from R0.
-	 * boot_info_ptr is a virtual address, convert to physical.
 	 */
 	LDA R0
-	STA R8			/* R8 = boot params pointer */
+	STA R8
 	LDA #boot_info_ptr
 	VIRT_TO_PHYS
-	STA R9			/* R9 = &boot_info_ptr (physical) */
+	STA R9
 	LDA R8
-	STA (R9)		/* Store boot params pointer */
+	STA (R9)
 
 	/*
 	 * Set up kernel stack (physical address).
-	 * init_stack_top is in BSS at a virtual address.
 	 */
 	LDA #init_stack_top
 	VIRT_TO_PHYS
-	TCS			/* A -> SP */
+	TCS
 
 	/*
 	 * Clear BSS section (physical addresses).
 	 */
 	LDA #__bss_start
 	VIRT_TO_PHYS
-	STA R0			/* R0 = physical __bss_start */
+	STA R0
 	LDA #__bss_stop
 	VIRT_TO_PHYS
-	STA R1			/* R1 = physical __bss_stop */
-1:
-	LDA R0
-	CMP R1
-	BCS 2f			/* Done when R0 >= R1 */
-	LDA #0
-	STA (R0)		/* Zero one word */
-	LDA R0
-	CLC
-	ADC #4
-	STA R0
-	BRA 1b
-2:
-
-	/*
-	 * Set up initial page tables.
-	 * Creates:
-	 *   - Identity map: phys 0x00000000-0x003FFFFF -> virt 0x00000000-0x003FFFFF
-	 *   - Kernel map:   phys 0x00000000-0x003FFFFF -> virt 0x80000000-0x803FFFFF
-	 *
-	 * Must use physical address for call (MMU still off).
-	 * JSR (Rn) uses the address in the register as the call target.
-	 */
-	LDA #setup_initial_pgtables
-	VIRT_TO_PHYS
-	STA R8
-	JSR (R8)
-
-	/*
-	 * Enable MMU: write 1 to MMUCR at 0xFFFFF000.
-	 * System registers bypass MMU, so this address works regardless.
-	 */
-	LDA #0xFFFFF000
-	STA R8
-	LDA #1
-	STA (R8)
-
-	/*
-	 * MMU is now on. Identity mapping means we can still execute
-	 * at our current physical address. Jump to the virtual address
-	 * of start_kernel_virtual (0x80xxxxxx).
-	 *
-	 * start_kernel_virtual is a virtual address (linker-resolved),
-	 * which now works because the kernel mapping is active.
-	 */
-	LDA #start_kernel_virtual
-	STA R8
-	JMP (R8)
-
-start_kernel_virtual:
-	/*
-	 * Now running at virtual addresses with MMU on.
-	 * Set up the virtual-address stack pointer.
-	 */
-	LDA #init_stack_top
-	TCS
-
-	/*
-	 * Call start_kernel (C code, virtual addresses).
-	 * m65832_current_task is set to &init_task in process.c.
-	 */
-	JSR start_kernel
-
-	/* Should never return */
-halt_loop:
-	WAI
-	BRA halt_loop
-
-ENDPROC(_start)
-
-/*
- * setup_initial_pgtables
- *
- * Build early page tables for identity + kernel mapping.
- * All addresses here are PHYSICAL (pre-MMU).
- *
- * Page table structure (2-level):
- *   PGD: 1024 entries x 4 bytes = 4KB, each entry covers 4MB
- *   PTE: 1024 entries x 4 bytes = 4KB, each entry covers 4KB
- *
- * We create one PTE table mapping physical 0-4MB, and point
- * both PGD[0] (identity) and PGD[512] (kernel at 0x80000000) to it.
- */
-ENTRY(setup_initial_pgtables)
-	/*
-	 * Clear PGD (4096 bytes)
-	 */
-	LDA #init_pg_dir
-	VIRT_TO_PHYS
-	STA R0
-	LDA R0
-	CLC
-	ADC #4096
 	STA R1
 1:
 	LDA R0
@@ -187,79 +80,260 @@ ENTRY(setup_initial_pgtables)
 2:
 
 	/*
-	 * PGD[0] = init_pte_table (physical) | Present | Writable
-	 * Identity mapping: virtual 0x00000000 -> physical 0x00000000
+	 * Set up initial page tables (64-bit entries).
+	 * Must use physical address for call (MMU still off).
 	 */
-	LDA #init_pte_table
+	LDA #setup_initial_pgtables
 	VIRT_TO_PHYS
-	ORA #3			/* Present + Writable */
-	STA R2			/* R2 = PTE table phys | flags */
+	STA R8
+	JSR (R8)
 
-	LDA #init_pg_dir
-	VIRT_TO_PHYS
-	STA R8			/* R8 = &PGD[0] (physical) */
-	LDA R2
+	/*
+	 * Enable MMU.
+	 * System registers at 0xFFFFF0xx bypass MMU.
+	 */
+	LDA #0xFFFFF000
+	STA R8
+	LDA #1
 	STA (R8)
 
 	/*
-	 * PGD[512] = same PTE table | Present | Writable
-	 * Kernel mapping: virtual 0x80000000 -> physical 0x00000000
+	 * MMU is now on. Identity mapping allows continued execution.
+	 * Jump to virtual address of start_kernel_virtual.
+	 */
+	LDA #start_kernel_virtual
+	STA R8
+	JMP (R8)
+
+start_kernel_virtual:
+	/*
+	 * Running at virtual addresses. Set up virtual stack.
+	 */
+	LDA #init_stack_top
+	TCS
+
+	/*
+	 * Call start_kernel (C code).
+	 */
+	JSR start_kernel
+
+halt_loop:
+	WAI
+	BRA halt_loop
+
+ENDPROC(_start)
+
+/*
+ * setup_initial_pgtables
+ *
+ * Build early page tables with 64-bit entries (matching MMU hardware).
+ * All addresses are PHYSICAL (pre-MMU).
+ *
+ * PGD: 1024 entries x 8 bytes = 8KB
+ * PTE: 1024 entries x 8 bytes = 8KB (x2 tables)
+ *
+ * Two PTE tables are needed because identity and kernel mappings
+ * require different physical base addresses:
+ *
+ *   PGD[0]   -> identity_pte: maps virtual 0x0 -> physical 0x0
+ *               (so code keeps running at physical address after MMU on)
+ *
+ *   PGD[512] -> kernel_pte: maps virtual 0x80000000 -> physical PHYS_OFFSET
+ *               (kernel link address mapping)
+ *
+ * Subroutine: fill_pte_table
+ *   R0 = PTE table base (physical)
+ *   R2 = starting physical page | flags
+ *   Fills 1024 entries, incrementing by 0x1000 each
+ */
+
+ENTRY(setup_initial_pgtables)
+	/*
+	 * Clear PGD (8192 bytes)
 	 */
 	LDA #init_pg_dir
 	VIRT_TO_PHYS
-	CLC
-	ADC #(512 * 4)
-	STA R8			/* R8 = &PGD[512] (physical) */
-	LDA R2
-	STA (R8)
-
-	/*
-	 * Fill PTE table: 1024 entries mapping physical 0-4MB.
-	 * Each PTE = physical_page_addr | Present | Writable
-	 */
-	LDA #init_pte_table
-	VIRT_TO_PHYS
-	STA R0			/* R0 = PTE table base (physical) */
-	LDA #3			/* R2 = phys page 0 | P | W */
-	STA R2
-	LDA #1024		/* R3 = counter */
-	STA R3
-3:
-	LDA R2
-	STA (R0)		/* Write PTE */
-	LDA R2
-	CLC
-	ADC #0x1000		/* Next 4KB page */
-	STA R2
+	STA R0
 	LDA R0
 	CLC
-	ADC #4			/* Next PTE slot */
+	ADC #8192
+	STA R1
+1:
+	LDA R0
+	CMP R1
+	BCS 2f
+	LDA #0
+	STA (R0)
+	LDA R0
+	CLC
+	ADC #4
 	STA R0
-	DEC R3
-	LDA R3
-	BNE 3b
+	BRA 1b
+2:
 
 	/*
-	 * Set page table base register (PTBR).
-	 * PTBR_LO = physical address of PGD.
-	 * System registers at 0xFFFFF0xx bypass MMU.
+	 * PGD[0] = identity_pte | Present | Writable
+	 * Identity map: virtual 0x0-0x3FFFFF -> physical 0x0-0x3FFFFF
+	 */
+	LDA #init_pg_dir
+	VIRT_TO_PHYS
+	STA R9
+	LDA #identity_pte
+	VIRT_TO_PHYS
+	ORA #3
+	STA (R9)		/* Low 32 bits */
+	LDA R9
+	CLC
+	ADC #4
+	STA R9
+	LDA #0
+	STA (R9)		/* High 32 bits = 0 */
+
+	/*
+	 * PGD[512] = kernel_pte0 | Present | Writable
+	 * Kernel map: virtual 0x80000000-0x803FFFFF -> physical PHYS_OFFSET
+	 */
+	LDA #init_pg_dir
+	VIRT_TO_PHYS
+	CLC
+	ADC #(512 * 8)
+	STA R9
+	LDA #kernel_pte
+	VIRT_TO_PHYS
+	ORA #3
+	STA (R9)
+	LDA R9
+	CLC
+	ADC #4
+	STA R9
+	LDA #0
+	STA (R9)
+
+	/*
+	 * PGD[513] = kernel_pte1 | Present | Writable
+	 * Kernel map: virtual 0x80400000-0x807FFFFF -> physical PHYS_OFFSET+0x400000
+	 */
+	LDA #init_pg_dir
+	VIRT_TO_PHYS
+	CLC
+	ADC #(513 * 8)
+	STA R9
+	LDA #kernel_pte1
+	VIRT_TO_PHYS
+	ORA #3
+	STA (R9)
+	LDA R9
+	CLC
+	ADC #4
+	STA R9
+	LDA #0
+	STA (R9)
+
+	/*
+	 * Fill identity_pte: 1024 entries starting at physical 0.
+	 * PTE[i] = (i * 0x1000) | Present | Writable
+	 */
+	LDA #identity_pte
+	VIRT_TO_PHYS
+	STA R0
+	LDA #3			/* Physical page 0 | P | W */
+	STA R2
+	LDA #1024
+	STA R3
+	LDA #fill_pte_table
+	VIRT_TO_PHYS
+	STA R5
+	JSR (R5)
+
+	/*
+	 * Fill kernel_pte: 1024 entries mapping 4MB at PHYS_OFFSET.
+	 * PTE[i] = (PHYS_OFFSET + i * 0x1000) | Present | Writable
+	 */
+	LDA #kernel_pte
+	VIRT_TO_PHYS
+	STA R0
+	LDA #PHYS_OFFSET
+	ORA #3
+	STA R2
+	LDA #1024
+	STA R3
+	LDA #fill_pte_table
+	VIRT_TO_PHYS
+	STA R5
+	JSR (R5)
+
+	/*
+	 * Fill kernel_pte1: 1024 entries mapping next 4MB.
+	 * PTE[i] = (PHYS_OFFSET + 0x400000 + i * 0x1000) | Present | Writable
+	 */
+	LDA #kernel_pte1
+	VIRT_TO_PHYS
+	STA R0
+	LDA #PHYS_OFFSET
+	CLC
+	ADC #0x400000		/* 4MB offset for second PTE table */
+	ORA #3
+	STA R2
+	LDA #1024
+	STA R3
+	LDA #fill_pte_table
+	VIRT_TO_PHYS
+	STA R5
+	JSR (R5)
+
+	/*
+	 * Set PTBR.
 	 */
 	LDA #0xFFFFF014
 	STA R8
 	LDA #init_pg_dir
 	VIRT_TO_PHYS
-	STA (R8)		/* PTBR_LO = PGD physical addr */
+	STA (R8)		/* PTBR_LO */
 
 	LDA #0xFFFFF018
 	STA R8
 	LDA #0
-	STA (R8)		/* PTBR_HI = 0 */
+	STA (R8)		/* PTBR_HI */
 
 	RTS
 ENDPROC(setup_initial_pgtables)
 
 /*
- * Data section
+ * fill_pte_table: fill 1024 x 8-byte PTE entries.
+ *   R0 = PTE table base (physical address)
+ *   R2 = starting physical page address | flags
+ *   R3 = count (1024)
+ * Clobbers: R0, R2, R3, R4, A
+ */
+fill_pte_table:
+1:
+	LDA R2
+	STA (R0)		/* PTE low 32 bits */
+	LDA R0
+	CLC
+	ADC #4
+	STA R4
+	LDA #0
+	STA (R4)		/* PTE high 32 bits = 0 */
+
+	LDA R0
+	CLC
+	ADC #8
+	STA R0			/* Next PTE (+8 bytes) */
+
+	LDA R2
+	CLC
+	ADC #0x1000
+	STA R2			/* Next physical page */
+
+	DEC R3
+	LDA R3
+	BNE 1b
+
+	RTS
+
+/*
+ * Data
  */
 	.section ".data", "aw"
 	.align 4
@@ -267,17 +341,23 @@ boot_info_ptr:
 	.long	0
 
 /*
- * BSS section
+ * BSS
  */
 	.section ".bss", "aw"
-	.align 12
+	.align 13			/* 8KB aligned for 64-bit PGD */
 init_pg_dir:
-	.space	4096		/* 1024 PGD entries */
+	.space	8192			/* 1024 x 8-byte PGD entries */
 
-init_pte_table:
-	.space	4096		/* 1024 PTE entries */
+identity_pte:
+	.space	8192			/* 1024 x 8-byte PTE: identity map */
+
+kernel_pte:
+	.space	8192			/* 1024 x 8-byte PTE: kernel map 0-4MB */
+
+kernel_pte1:
+	.space	8192			/* 1024 x 8-byte PTE: kernel map 4-8MB */
 
 	.align 12
 init_stack:
-	.space	8192		/* 8KB initial stack */
+	.space	8192			/* 8KB kernel stack */
 init_stack_top:
