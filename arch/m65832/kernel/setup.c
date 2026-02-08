@@ -162,8 +162,14 @@ static void __init setup_memory(void)
  */
 void __init setup_arch(char **cmdline_p)
 {
-	/* Register raw UART console FIRST so all printk output is visible */
+	/* Direct UART write to confirm setup_arch is reached */
+	raw_uart_putc('A');
+
+	/* Register raw UART console so all printk output is visible */
 	register_raw_console();
+
+	/* Confirm console registered */
+	raw_uart_putc('B');
 
 	/* Set up command line */
 	if (boot_info.cmdline[0]) {

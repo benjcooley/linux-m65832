@@ -215,6 +215,26 @@ ENTRY(setup_initial_pgtables)
 	STA (R9)		/* High 32 bits = 0 */
 
 	/*
+	 * PGD[1] = identity_pte1 | Present | Writable
+	 * Identity map: virtual 0x00400000-0x007FFFFF -> physical 0x00400000
+	 */
+	LDA #init_pg_dir
+	VIRT_TO_PHYS
+	CLC
+	ADC #(1 * 8)
+	STA R9
+	LDA #identity_pte1
+	VIRT_TO_PHYS
+	ORA #3
+	STA (R9)
+	LDA R9
+	CLC
+	ADC #4
+	STA R9
+	LDA #0
+	STA (R9)
+
+	/*
 	 * PGD[512] = kernel_pte0 | Present | Writable
 	 * Kernel map: virtual 0x80000000-0x803FFFFF -> physical PHYS_OFFSET
 	 */
@@ -284,6 +304,22 @@ ENTRY(setup_initial_pgtables)
 	VIRT_TO_PHYS
 	STA R0
 	LDA #3			/* Physical page 0 | P | W */
+	STA R2
+	LDA #1024
+	STA R3
+	LDA #fill_pte_table
+	VIRT_TO_PHYS
+	STA R5
+	JSR (R5)
+
+	/*
+	 * Fill identity_pte1: 1024 entries starting at physical 0x00400000.
+	 */
+	LDA #identity_pte1
+	VIRT_TO_PHYS
+	STA R0
+	LDA #0x00400000
+	ORA #3
 	STA R2
 	LDA #1024
 	STA R3
@@ -413,7 +449,10 @@ init_pg_dir:
 	.space	8192			/* 1024 x 8-byte PGD entries */
 
 identity_pte:
-	.space	8192			/* 1024 x 8-byte PTE: identity map */
+	.space	8192			/* 1024 x 8-byte PTE: identity map 0-4MB */
+
+identity_pte1:
+	.space	8192			/* 1024 x 8-byte PTE: identity map 4-8MB */
 
 kernel_pte:
 	.space	8192			/* 1024 x 8-byte PTE: kernel map 0-4MB */
