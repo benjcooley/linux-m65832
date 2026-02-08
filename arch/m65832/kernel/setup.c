@@ -33,6 +33,49 @@ unsigned long cpu_clock_freq = 100000000;	/* Default 100 MHz */
 unsigned long timer_freq = 100000000;
 
 /*
+ * Ultra-early UART console for printk.
+ * Uses the UART at 0x10006000 which is identity-mapped by head.S.
+ * No ioremap needed -- we write to the physical address directly
+ * through the peripheral identity mapping set up in the initial page tables.
+ */
+#define EARLY_UART_TX	(*(volatile unsigned int *)0x10006000)
+#define EARLY_UART_ST	(*(volatile unsigned int *)0x10006004)
+#define EARLY_UART_TXRDY 0x02
+
+static void raw_uart_putc(unsigned char c)
+{
+	while (!(EARLY_UART_ST & EARLY_UART_TXRDY))
+		;
+	EARLY_UART_TX = c;
+}
+
+static void raw_uart_write(struct console *con, const char *s, unsigned n)
+{
+	while (n--) {
+		if (*s == '\n')
+			raw_uart_putc('\r');
+		raw_uart_putc(*s);
+		s++;
+	}
+}
+
+static struct console raw_uart_console = {
+	.name	= "rawuart",
+	.write	= raw_uart_write,
+	.flags	= CON_PRINTBUFFER | CON_BOOT | CON_ENABLED,
+	.index	= -1,
+};
+
+/*
+ * Register the raw UART console so printk output goes to the UART
+ * immediately. Called at the very start of setup_arch.
+ */
+static void __init register_raw_console(void)
+{
+	register_console(&raw_uart_console);
+}
+
+/*
  * Early console output (before proper console is set up)
  * Uses the M65832 UART at M65832_UART_BASE (0x10006000)
  */
@@ -119,7 +162,8 @@ static void __init setup_memory(void)
  */
 void __init setup_arch(char **cmdline_p)
 {
-	m65832_early_printk("M65832 Linux starting...\n");
+	/* Register raw UART console FIRST so all printk output is visible */
+	register_raw_console();
 
 	/* Set up command line */
 	if (boot_info.cmdline[0]) {

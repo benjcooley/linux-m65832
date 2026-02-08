@@ -113,6 +113,17 @@ start_kernel_virtual:
 	TCS
 
 	/*
+	 * Initialize CPU state for C code:
+	 * - Enable register window (RSET): R0-R63 mapped to DP addresses
+	 * - Set Direct Page (D) to 0: register window at DP base 0
+	 * - B = 0: C function prologues will set B as frame pointer
+	 */
+	RSET			/* Enable register window */
+	LDA #0
+	TCD			/* D = 0 (Direct Page base) */
+	SB #0			/* B = 0 */
+
+	/*
 	 * Early UART output to confirm we reached virtual mode.
 	 * Peripheral identity map makes UART accessible at 0x10006010 (TX).
 	 * Write 'K' '\r' '\n' to show kernel entry.
