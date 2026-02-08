@@ -113,6 +113,20 @@ start_kernel_virtual:
 	TCS
 
 	/*
+	 * Early UART output to confirm we reached virtual mode.
+	 * Peripheral identity map makes UART accessible at 0x10006010 (TX).
+	 * Write 'K' '\r' '\n' to show kernel entry.
+	 */
+	LDA #0x10006010		/* UART TX register (identity mapped) */
+	STA R8
+	LDA #0x4B		/* 'K' */
+	STA (R8)
+	LDA #0x0D		/* '\r' */
+	STA (R8)
+	LDA #0x0A		/* '\n' */
+	STA (R8)
+
+	/*
 	 * Call start_kernel (C code).
 	 */
 	JSR start_kernel
@@ -230,6 +244,28 @@ ENTRY(setup_initial_pgtables)
 	STA (R9)
 
 	/*
+	 * PGD[64] = periph_pte | Present | Writable
+	 * Peripheral identity map: virtual 0x10000000-0x103FFFFF -> physical 0x10000000
+	 * This allows early UART access at 0x10006000 before ioremap works.
+	 * PGD index for 0x10000000 = 0x10000000 >> 22 = 64
+	 */
+	LDA #init_pg_dir
+	VIRT_TO_PHYS
+	CLC
+	ADC #(64 * 8)
+	STA R9
+	LDA #periph_pte
+	VIRT_TO_PHYS
+	ORA #3
+	STA (R9)
+	LDA R9
+	CLC
+	ADC #4
+	STA R9
+	LDA #0
+	STA (R9)
+
+	/*
 	 * Fill identity_pte: 1024 entries starting at physical 0.
 	 * PTE[i] = (i * 0x1000) | Present | Writable
 	 */
@@ -253,6 +289,23 @@ ENTRY(setup_initial_pgtables)
 	VIRT_TO_PHYS
 	STA R0
 	LDA #PHYS_OFFSET
+	ORA #3
+	STA R2
+	LDA #1024
+	STA R3
+	LDA #fill_pte_table
+	VIRT_TO_PHYS
+	STA R5
+	JSR (R5)
+
+	/*
+	 * Fill periph_pte: 1024 entries mapping peripherals at 0x10000000.
+	 * PTE[i] = (0x10000000 + i * 0x1000) | Present | Writable
+	 */
+	LDA #periph_pte
+	VIRT_TO_PHYS
+	STA R0
+	LDA #0x10000000
 	ORA #3
 	STA R2
 	LDA #1024
@@ -356,6 +409,9 @@ kernel_pte:
 
 kernel_pte1:
 	.space	8192			/* 1024 x 8-byte PTE: kernel map 4-8MB */
+
+periph_pte:
+	.space	8192			/* 1024 x 8-byte PTE: peripheral identity map */
 
 	.align 12
 init_stack:
