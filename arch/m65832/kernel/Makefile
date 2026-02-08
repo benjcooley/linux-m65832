@@ -3,9 +3,9 @@
 # Makefile for M65832 kernel files
 #
 
-extra-y := head.o vmlinux.lds
+extra-y := vmlinux.lds
 
-obj-y := entry.o setup.o process.o traps.o irq.o time.o signal.o ptrace.o
+obj-y := head.o entry.o setup.o process.o traps.o irq.o time.o signal.o ptrace.o
 obj-y += sys_m65832.o stacktrace.o
 
 obj-$(CONFIG_MODULES)		+= module.o

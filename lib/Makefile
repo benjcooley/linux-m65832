@@ -135,7 +135,7 @@ lib-$(CONFIG_INDIRECT_IOMEM) += logic_iomem.o
 
 obj-$(CONFIG_TRACE_MMIO_ACCESS) += trace_readwrite.o
 
-obj-$(CONFIG_GENERIC_HWEIGHT) += hweight.o
+obj-y += hweight.o
 
 obj-$(CONFIG_BTREE) += btree.o
 obj-$(CONFIG_INTERVAL_TREE) += interval_tree.o

@@ -12,6 +12,9 @@
 #include <linux/console.h>
 #include <linux/of.h>
 #include <linux/of_fdt.h>
+#include <linux/io.h>
+#include <linux/delay.h>
+#include <linux/seq_file.h>
 
 #include <asm/setup.h>
 #include <asm/page.h>
@@ -63,7 +66,7 @@ void __init setup_early_printk(void)
 #endif
 }
 
-void early_printk(const char *fmt, ...)
+static void m65832_early_printk(const char *fmt, ...)
 {
 	va_list ap;
 	char buf[256];
@@ -97,7 +100,7 @@ static void __init setup_memory(void)
 		mem_size = 64 * 1024 * 1024;
 	}
 
-	early_printk("M65832: Memory: %luMB @ 0x%08lx\n",
+	m65832_early_printk("M65832: Memory: %luMB @ 0x%08lx\n",
 		     mem_size / (1024 * 1024), mem_start);
 
 	/* Register memory with memblock */
@@ -116,7 +119,7 @@ static void __init setup_memory(void)
  */
 void __init setup_arch(char **cmdline_p)
 {
-	early_printk("M65832 Linux starting...\n");
+	m65832_early_printk("M65832 Linux starting...\n");
 
 	/* Set up command line */
 	if (boot_info.cmdline[0]) {
@@ -130,7 +133,7 @@ void __init setup_arch(char **cmdline_p)
 	}
 	*cmdline_p = cmd_line;
 
-	early_printk("Command line: %s\n", cmd_line);
+	m65832_early_printk("Command line: %s\n", cmd_line);
 
 	/* Initialize memory management */
 	setup_memory();
@@ -144,7 +147,7 @@ void __init setup_arch(char **cmdline_p)
 #endif
 
 	/* Print CPU info */
-	early_printk("M65832 CPU @ %lu MHz\n", cpu_clock_freq / 1000000);
+	m65832_early_printk("M65832 CPU @ %lu MHz\n", cpu_clock_freq / 1000000);
 }
 
 /*
@@ -161,11 +164,56 @@ void __init cpu_init(void)
 #endif
 }
 
+/* calibrate_delay is provided by init/calibrate.c */
+
 /*
- * Architecture calibration for delay loops
+ * /proc/cpuinfo support
  */
-void calibrate_delay(void)
+static int show_cpuinfo(struct seq_file *m, void *v)
 {
-	/* For now, use a fixed estimate based on CPU frequency */
-	loops_per_jiffy = cpu_clock_freq / HZ;
+	seq_printf(m, "processor\t: 0\n");
+	seq_printf(m, "cpu\t\t: M65832\n");
+	seq_printf(m, "revision\t: 1\n");
+	seq_printf(m, "cpu MHz\t\t: %lu.%02lu\n",
+		   cpu_clock_freq / 1000000,
+		   (cpu_clock_freq % 1000000) / 10000);
+	seq_printf(m, "BogoMIPS\t: %lu.%02lu\n",
+		   loops_per_jiffy / (500000 / HZ),
+		   (loops_per_jiffy / (5000 / HZ)) % 100);
+	seq_printf(m, "features\t: mmu");
+#ifdef CONFIG_M65832_FPU
+	seq_printf(m, " fpu");
+#endif
+	seq_printf(m, "\n");
+	seq_printf(m, "hardware\t: %s\n",
+#ifdef CONFIG_M65832_PLATFORM
+		   CONFIG_M65832_PLATFORM
+#else
+		   "unknown"
+#endif
+		   );
+
+	return 0;
 }
+
+static void *c_start(struct seq_file *m, loff_t *pos)
+{
+	return *pos < 1 ? (void *)1 : NULL;
+}
+
+static void *c_next(struct seq_file *m, void *v, loff_t *pos)
+{
+	++*pos;
+	return NULL;
+}
+
+static void c_stop(struct seq_file *m, void *v)
+{
+}
+
+const struct seq_operations cpuinfo_op = {
+	.start	= c_start,
+	.next	= c_next,
+	.stop	= c_stop,
+	.show	= show_cpuinfo,
+};

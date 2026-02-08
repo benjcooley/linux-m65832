@@ -9,8 +9,11 @@
 config M65832
 	def_bool y
 	select ARCH_32BIT_OFF_T
-	select ARCH_HAS_DMA_SET_UNCACHED
-	select ARCH_HAS_SYNC_DMA_FOR_DEVICE
+	select ARCH_HAS_PTE_SPECIAL
+	select THREAD_INFO_IN_TASK
+	# No DMA hardware - stubs not needed
+	# select ARCH_HAS_DMA_SET_UNCACHED
+	# select ARCH_HAS_SYNC_DMA_FOR_DEVICE
 	select COMMON_CLK
 	select GENERIC_ATOMIC64
 	select GENERIC_CLOCKEVENTS
@@ -29,7 +32,7 @@ config M65832
 	select GENERIC_PCI_IOMAP
 	select GENERIC_SCHED_CLOCK
 	select GENERIC_SMP_IDLE_THREAD
-	select GENERIC_TIME_VSYSCALL
+	# GENERIC_TIME_VSYSCALL intentionally not selected (no vDSO)
 	select HAVE_ARCH_TRACEHOOK
 	select HAVE_MEMBLOCK
 	select HAVE_REGS_AND_STACK_ACCESS_API
@@ -37,8 +40,8 @@ config M65832
 	select MODULES_USE_ELF_RELA
 	select OF
 	select OF_EARLY_FLATTREE
-	select SET_FS
 	select SPARSE_IRQ
+	select ARCH_STACKWALK
 	select STACKTRACE_SUPPORT
 	select TRACE_IRQFLAGS_SUPPORT
 	help
@@ -166,10 +169,12 @@ config PAGE_OFFSET
 	  begins. Addresses below this are user space.
 
 config PHYS_OFFSET
-	hex "Physical address of RAM start"
-	default 0x00000000
+	hex "Physical address of kernel load"
+	default 0x00100000
 	help
-	  This is the physical address where RAM begins on your system.
+	  Physical address where the kernel is loaded by the boot ROM.
+	  The boot ROM loads vmlinux.bin to this address via DMA.
+	  Default 0x00100000 (1MB) leaves room for vectors and boot params.
 
 endmenu
 

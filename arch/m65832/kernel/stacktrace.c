@@ -3,20 +3,28 @@
  * M65832 Linux
  *
  * Stack trace support for the M65832 architecture.
+ *
+ * Per the M65832 ABI:
+ *   B = frame pointer (callee-saved)
+ *   R30 = link register (return address)
  */
 
 #include <linux/sched.h>
 #include <linux/sched/debug.h>
 #include <linux/sched/task_stack.h>
-#include <linux/stacktrace.h>
 #include <linux/kallsyms.h>
+#include <linux/stacktrace.h>
 
-#include <asm/stacktrace.h>
 #include <asm/ptrace.h>
+#include <asm/stacktrace.h>
 
 /*
  * Unwind one frame
  * Returns 0 on success, -1 on failure
+ *
+ * Frame layout (B-relative):
+ *   [B+0] = saved previous B (frame pointer chain)
+ *   [B+4] = saved return address
  */
 int unwind_frame(struct task_struct *task, struct stackframe *frame)
 {
@@ -38,63 +46,37 @@ int unwind_frame(struct task_struct *task, struct stackframe *frame)
 }
 
 /*
- * Walk the stack and call fn for each frame
+ * Walk the stack and call consume_fn for each frame.
+ * Modern kernel interface: arch_stack_walk.
  */
-static void walk_stackframe(struct task_struct *task, struct stackframe *frame,
-			    bool (*fn)(void *data, unsigned long addr),
-			    void *data)
-{
-	while (1) {
-		if (!fn(data, frame->ra))
-			break;
-		if (unwind_frame(task, frame))
-			break;
-	}
-}
-
-/*
- * Save stack trace
- */
-static bool save_trace(void *data, unsigned long addr)
-{
-	struct stack_trace *trace = data;
-
-	if (trace->skip > 0) {
-		trace->skip--;
-		return true;
-	}
-
-	if (trace->nr_entries < trace->max_entries) {
-		trace->entries[trace->nr_entries++] = addr;
-		return true;
-	}
-
-	return false;
-}
-
-void save_stack_trace_tsk(struct task_struct *task, struct stack_trace *trace)
+void arch_stack_walk(stack_trace_consume_fn consume_fn, void *cookie,
+		     struct task_struct *task, struct pt_regs *regs)
 {
 	struct stackframe frame;
 
-	if (task == current) {
-		/* Get current frame */
-		register unsigned long fp asm("r29");
-		register unsigned long ra asm("r30");
-		start_backtrace(&frame, fp, ra);
+	if (regs) {
+		start_backtrace(&frame, regs->b, regs->r30);
+	} else if (task == current) {
+		/* For current task, use a stub - real unwinding needs
+		 * the actual B and R30 values from inline asm.
+		 * TODO: Use proper inline asm once B constraint works.
+		 */
+		start_backtrace(&frame, 0, 0);
+		return;
 	} else {
-		/* Get saved frame from task */
-		start_backtrace(&frame, task->thread.r29, task->thread.r30);
+		/* For sleeping tasks, get saved context */
+		start_backtrace(&frame, task->thread.b, 0);
 	}
 
-	walk_stackframe(task, &frame, save_trace, trace);
+	while (1) {
+		if (!frame.ra)
+			break;
+		if (!consume_fn(cookie, frame.ra))
+			break;
+		if (unwind_frame(task, &frame))
+			break;
+	}
 }
-EXPORT_SYMBOL_GPL(save_stack_trace_tsk);
-
-void save_stack_trace(struct stack_trace *trace)
-{
-	save_stack_trace_tsk(current, trace);
-}
-EXPORT_SYMBOL_GPL(save_stack_trace);
 
 /*
  * Show stack for debugging
@@ -108,16 +90,19 @@ void show_stack(struct task_struct *task, unsigned long *sp, const char *loglvl)
 		task = current;
 
 	if (task == current) {
-		register unsigned long fp asm("r29");
-		register unsigned long ra asm("r30");
-		start_backtrace(&frame, fp, ra);
-	} else {
-		start_backtrace(&frame, task->thread.r29, task->thread.r30);
+		/* Simplified: just show current PC */
+		printk("%sCall Trace:\n", loglvl);
+		printk("%s  (stack trace not available for current task)\n", loglvl);
+		return;
 	}
+
+	start_backtrace(&frame, task->thread.b, 0);
 
 	printk("%sCall Trace:\n", loglvl);
 
 	while (count < 64) {
+		if (!frame.ra)
+			break;
 		printk("%s [<%08lx>] %pS\n", loglvl, frame.ra, (void *)frame.ra);
 		if (unwind_frame(task, &frame))
 			break;

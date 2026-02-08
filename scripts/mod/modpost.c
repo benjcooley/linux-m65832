@@ -21,6 +21,19 @@
 #include <stdbool.h>
 #include <errno.h>
 
+/* macOS compatibility */
+#ifdef __APPLE__
+#ifndef EM_MIPS
+#define EM_MIPS 8
+#endif
+static inline char *strchrnul(const char *s, int c)
+{
+	while (*s && *s != c)
+		s++;
+	return (char *)s;
+}
+#endif
+
 #include <hash.h>
 #include <hashtable.h>
 #include <list.h>

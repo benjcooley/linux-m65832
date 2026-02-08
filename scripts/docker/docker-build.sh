@@ -10,7 +10,8 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KERNEL_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
-LLVM_DIR="${KERNEL_DIR}/../llvm-m65832"
+# Canonical toolchain location: m65832/bin/
+TOOLCHAIN_DIR="${KERNEL_DIR}/../m65832"
 
 IMAGE_NAME="m65832-linux-builder"
 CONTAINER_NAME="m65832-build"
@@ -29,7 +30,7 @@ build_image() {
 run_in_container() {
     docker run --rm \
         -v "${KERNEL_DIR}:/build/kernel" \
-        -v "${LLVM_DIR}:/build/llvm-m65832" \
+        -v "${TOOLCHAIN_DIR}:/build/m65832" \
         -w /build/kernel \
         "$IMAGE_NAME" \
         "$@"
@@ -43,14 +44,14 @@ do_build() {
     
     run_in_container bash -c "
         gmake ARCH=m65832 LLVM=1 LLVM_IAS=1 \
-            CC=/build/llvm-m65832/build/bin/m65832-linux-clang \
-            LD=/build/llvm-m65832/build/bin/ld.lld \
-            AR=/build/llvm-m65832/build/bin/llvm-ar \
-            NM=/build/llvm-m65832/build/bin/llvm-nm \
-            STRIP=/build/llvm-m65832/build/bin/llvm-strip \
-            OBJCOPY=/build/llvm-m65832/build/bin/llvm-objcopy \
-            OBJDUMP=/build/llvm-m65832/build/bin/llvm-objdump \
-            READELF=/build/llvm-m65832/build/bin/llvm-readelf \
+            CC=/build/m65832/bin/clang \
+            LD=/build/m65832/bin/ld.lld \
+            AR=/build/m65832/bin/llvm-ar \
+            NM=/build/m65832/bin/llvm-nm \
+            STRIP=/build/m65832/bin/llvm-strip \
+            OBJCOPY=/build/m65832/bin/llvm-objcopy \
+            OBJDUMP=/build/m65832/bin/llvm-objdump \
+            READELF=/build/m65832/bin/llvm-readelf \
             -j\$(nproc) \
             $target
     "
@@ -95,7 +96,7 @@ case "${1:-help}" in
     shell)
         docker run --rm -it \
             -v "${KERNEL_DIR}:/build/kernel" \
-            -v "${LLVM_DIR}:/build/llvm-m65832" \
+            -v "${TOOLCHAIN_DIR}:/build/m65832" \
             -w /build/kernel \
             "$IMAGE_NAME" \
             bash

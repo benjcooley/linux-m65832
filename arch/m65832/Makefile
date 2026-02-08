@@ -12,13 +12,18 @@ OBJCOPYFLAGS	:= -O binary -R .note -R .comment -S
 LDFLAGS_vmlinux	:=
 
 # Use LLVM's LLD linker
-KBUILD_LDFLAGS	+= --gc-sections
+# Note: --gc-sections disabled until ENTRY(_start) works with LLD for M65832
+# KBUILD_LDFLAGS	+= --gc-sections
 
 # M65832-specific compiler flags
 # -ffixed-r24: Reserve R24 for thread_info pointer
 # -ffixed-r25: Reserve R25 for current task pointer
 KBUILD_CFLAGS	+= -pipe -ffreestanding
 KBUILD_CFLAGS	+= -fno-common
+
+# Downgrade volatile-pointer qualifier warnings from error to warning.
+# Use KBUILD_CFLAGS_KERNEL so it's appended after scripts/Makefile.warn.
+KBUILD_CFLAGS_KERNEL += -Wno-error=incompatible-pointer-types-discards-qualifiers
 KBUILD_AFLAGS	+= -D__ASSEMBLY__
 
 # M65832 doesn't have FPU - no float flags needed

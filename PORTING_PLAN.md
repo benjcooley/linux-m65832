@@ -423,17 +423,29 @@ Device Memory:
 ## Quick Reference: M65832 Specifics
 
 ### Registers for Linux
-| Register | Linux Use |
-|----------|-----------|
-| R0-R7 | Function arguments |
-| R8-R15 | Temp/caller-saved |
-| R16-R23 | Callee-saved |
-| R24 | Current thread_info |
-| R25 | Current task_struct |
-| R26-R28 | Reserved |
-| R29 | Frame pointer |
-| R30 | Return address |
-| R31 | Stack pointer |
+| Register | Linux Use | Preservation |
+|----------|-----------|--------------|
+| R0-R7 | Function arguments / return | Caller-saved |
+| R8-R15 | Temporaries | Caller-saved |
+| R16-R23 | Saved registers | Callee-saved |
+| R24 | Current thread_info | Reserved (kernel) |
+| R25 | Current task_struct | Reserved (kernel) |
+| R26-R29 | Reserved | Reserved (kernel) |
+| R30 | Link register (lr) | Caller-saved |
+| R31 | Reserved | Reserved |
+| A | Accumulator / scratch | Caller-saved |
+| B | Frame pointer (fp) | Callee-saved |
+| X, Y | Index / scratch | Caller-saved |
+| SP | Stack pointer | Special |
+
+### Data Transfer Instructions (TBA/TAB)
+| Instruction | Description |
+|-------------|-------------|
+| TBA | Transfer B to A (copy frame pointer to A) |
+| TAB | Transfer A to B (copy A to frame pointer) |
+
+Note: B is used as the frame pointer, saved via PHB in prologue and restored
+via PLB in epilogue. R30 is the link register (return address from JSR).
 
 ### Key System Registers
 | Address | Register | Use |

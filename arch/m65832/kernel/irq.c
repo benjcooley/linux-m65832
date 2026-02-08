@@ -124,8 +124,7 @@ void __init init_IRQ(void)
 		return;
 	}
 
-	/* Set as default domain */
-	irq_set_default_host(m65832_irq_domain);
+	/* Domain is used directly in do_IRQ via irq_find_mapping */
 
 	early_printk("M65832: IRQ controller initialized\n");
 }

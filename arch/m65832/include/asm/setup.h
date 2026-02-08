@@ -39,14 +39,12 @@ void __init paging_init(void);
 void __init trap_init(void);
 
 /*
- * Early console
+ * Early console setup (early_printk itself is provided by kernel/printk/)
  */
 #ifdef CONFIG_M65832_EARLY_PRINTK
 void __init setup_early_printk(void);
-void early_printk(const char *fmt, ...);
 #else
 static inline void setup_early_printk(void) { }
-#define early_printk(fmt, ...) do { } while (0)
 #endif
 
 /*

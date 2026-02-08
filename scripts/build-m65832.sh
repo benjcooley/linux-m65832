@@ -22,7 +22,8 @@ set -e
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KERNEL_DIR="$(dirname "$SCRIPT_DIR")"
-LLVM_DIR="${KERNEL_DIR}/../llvm-m65832/build/bin"
+# Canonical toolchain location: m65832/bin/ (installed via m65832/build.sh install)
+LLVM_DIR="${KERNEL_DIR}/../m65832/bin"
 
 # Check for required tools
 check_requirements() {

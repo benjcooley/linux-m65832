@@ -6,6 +6,10 @@
  *
  * Uses SEI (Set Interrupt disable) and CLI (Clear Interrupt disable)
  * instructions to control the I flag in the status register.
+ *
+ * Inline asm constraints:
+ *   "r" = GPR (R0-R23), "a" = A accumulator,
+ *   "x" = X register, "y" = Y register
  */
 
 #ifndef _ASM_M65832_IRQFLAGS_H
@@ -17,15 +21,15 @@
 
 /*
  * Get current status register value
- * PHP pushes P to stack, then we pop it to a register
+ * PHP pushes P to stack, then PLA pops it to A
  */
-static inline unsigned long arch_local_save_flags(void)
+static __always_inline unsigned long arch_local_save_flags(void)
 {
 	unsigned long flags;
 
 	asm volatile(
-		"PHP\n\t"
-		"PLA\n\t"
+		"PHP\n"
+		"PLA\n"
 		"STA %0"
 		: "=r" (flags)
 		:
@@ -39,7 +43,7 @@ static inline unsigned long arch_local_save_flags(void)
  * Disable local IRQs
  * SEI sets the I flag in the status register
  */
-static inline void arch_local_irq_disable(void)
+static __always_inline void arch_local_irq_disable(void)
 {
 	asm volatile("SEI" : : : "memory", "cc");
 }
@@ -48,64 +52,61 @@ static inline void arch_local_irq_disable(void)
  * Enable local IRQs
  * CLI clears the I flag in the status register
  */
-static inline void arch_local_irq_enable(void)
+static __always_inline void arch_local_irq_enable(void)
 {
 	asm volatile("CLI" : : : "memory", "cc");
 }
 
 /*
- * Disable IRQs and return previous state
+ * Save flags and disable IRQs - used by cmpxchg.h
+ * Separate function to avoid circular dependency with full irq_save
  */
-static inline unsigned long arch_local_irq_save(void)
+static __always_inline void arch_local_irq_save_flags_disable(unsigned long *flags)
 {
-	unsigned long flags;
-
 	asm volatile(
-		"PHP\n\t"
-		"SEI\n\t"
-		"PLA\n\t"
+		"PHP\n"
+		"SEI\n"
+		"PLA\n"
 		"STA %0"
-		: "=r" (flags)
+		: "=r" (*flags)
 		:
 		: "a", "memory", "cc"
 	);
+}
+
+/*
+ * Disable IRQs and return previous state
+ */
+static __always_inline unsigned long arch_local_irq_save(void)
+{
+	unsigned long flags;
+
+	arch_local_irq_save_flags_disable(&flags);
 
 	return flags;
 }
 
 /*
  * Restore IRQ state
+ * Uses C branching to avoid duplicate label issues when inlined
  */
-static inline void arch_local_irq_restore(unsigned long flags)
+static __always_inline void arch_local_irq_restore(unsigned long flags)
 {
-	/*
-	 * If the I bit was set (IRQs disabled), keep them disabled.
-	 * Otherwise enable them.
-	 */
-	asm volatile(
-		"LDA %0\n\t"
-		"AND #4\n\t"		/* Check I bit (bit 2) */
-		"BNE .LKEEP_DISABLED\n\t"
-		"CLI\n\t"
-		"BRA .LDONE\n\t"
-		".LKEEP_DISABLED:\n\t"
-		"SEI\n\t"
-		".LDONE:"
-		:
-		: "r" (flags)
-		: "a", "memory", "cc"
-	);
+	if (flags & SR_IRQ_DISABLE)
+		arch_local_irq_disable();
+	else
+		arch_local_irq_enable();
 }
 
 /*
  * Check if IRQs are disabled
  */
-static inline bool arch_irqs_disabled_flags(unsigned long flags)
+static __always_inline bool arch_irqs_disabled_flags(unsigned long flags)
 {
 	return (flags & SR_IRQ_DISABLE) != 0;
 }
 
-static inline bool arch_irqs_disabled(void)
+static __always_inline bool arch_irqs_disabled(void)
 {
 	return arch_irqs_disabled_flags(arch_local_save_flags());
 }

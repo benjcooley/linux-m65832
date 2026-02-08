@@ -19,6 +19,14 @@
 #include <asm/ptrace.h>
 #include <asm/switch_to.h>
 #include <asm/current.h>
+#include <asm/elf.h>
+
+/*
+ * Current task pointer (simple global for initial single-core bring-up).
+ * TODO: Use dedicated register R25 once inline asm syntax is finalized.
+ */
+struct task_struct *m65832_current_task = &init_task;
+EXPORT_SYMBOL(m65832_current_task);
 
 /*
  * Power off function pointer
@@ -83,9 +91,9 @@ void show_regs(struct pt_regs *regs)
 		regs->r8, regs->r9, regs->r10, regs->r11);
 	pr_info("R12: %08lx R13: %08lx R14: %08lx R15: %08lx\n",
 		regs->r12, regs->r13, regs->r14, regs->r15);
-	pr_info("R29: %08lx (FP) R30: %08lx (LR)\n", regs->r29, regs->r30);
-	pr_info("  A: %08lx   X: %08lx   Y: %08lx  SP: %08lx\n",
-		regs->a, regs->x, regs->y, regs->sp);
+	pr_info("R30: %08lx (LR)\n", regs->r30);
+	pr_info("  A: %08lx   B: %08lx (FP)   X: %08lx   Y: %08lx  SP: %08lx\n",
+		regs->a, regs->b, regs->x, regs->y, regs->sp);
 }
 
 /*
@@ -102,6 +110,12 @@ unsigned long __get_wchan(struct task_struct *p)
 	pc = task_pt_regs(p)->pc;
 	return pc;
 }
+
+/*
+ * Assembly helpers - defined in entry.S
+ */
+asmlinkage void ret_from_fork(void);
+asmlinkage void ret_from_kernel_thread(void);
 
 /*
  * Copy thread state for fork/clone
@@ -152,31 +166,17 @@ int copy_thread(struct task_struct *p, const struct kernel_clone_args *args)
 }
 
 /*
- * Start a new thread executing in user mode
+ * Copy FPU registers into ELF core dump.
+ * M65832 FPU state is not yet saved per-thread, so return 0 (no FP regs).
  */
-void start_thread(struct pt_regs *regs, unsigned long pc, unsigned long sp)
+int elf_core_copy_task_fpregs(struct task_struct *t, elf_fpregset_t *fpu)
 {
-	memset(regs, 0, sizeof(*regs));
-	regs->pc = pc;
-	regs->sp = sp;
-	regs->status = SR_USER_MODE;
+	return 0;
 }
 
-/*
- * Release all thread resources
- */
-void release_thread(struct task_struct *dead_task)
-{
-	/* Nothing to do */
-}
+/* start_thread is defined as a macro in asm/processor.h */
 
-/*
- * Exit the thread
- */
-void exit_thread(struct task_struct *tsk)
-{
-	/* Nothing to do */
-}
+/* release_thread is __weak in kernel/exit.c - no arch override needed */
 
 /*
  * Flush thread state (exec)
@@ -190,47 +190,23 @@ void flush_thread(void)
 }
 
 /*
- * Assembly helpers - defined in entry.S
- */
-asmlinkage void ret_from_fork(void);
-asmlinkage void ret_from_kernel_thread(void);
-
-/*
  * Low-level context switch
  * Saves callee-saved registers of 'prev' and restores 'next'
+ */
+/*
+ * Low-level context switch.
+ *
+ * The actual register save/restore is done in __switch_to_asm (entry.S).
+ * This C function updates the current task pointer and returns prev.
+ *
+ * TODO: The assembly-level ksp switch is in entry.S's switch_to macro.
+ * For initial bring-up, we do a simplified version here.
  */
 struct task_struct *__switch_to(struct task_struct *prev,
 				struct task_struct *next)
 {
-	struct thread_struct *prev_thread = &prev->thread;
-	struct thread_struct *next_thread = &next->thread;
-
-	/*
-	 * Save prev's callee-saved registers
-	 * These are saved on the kernel stack in entry.S
-	 */
-
-	/*
-	 * Update thread_info and task pointers in reserved registers
-	 * R24 = thread_info
-	 * R25 = task_struct
-	 */
-	asm volatile(
-		"LD R25, %0\n\t"	/* current = next */
-		"LD R24, %1"		/* thread_info = next's thread_info */
-		:
-		: "r" (next), "r" (task_thread_info(next))
-		: "memory"
-	);
-
-	/* Switch kernel stack pointer */
-	asm volatile(
-		"LD %0, SP\n\t"		/* Save prev's ksp */
-		"LD SP, %1"		/* Load next's ksp */
-		: "=r" (prev_thread->ksp)
-		: "r" (next_thread->ksp)
-		: "memory"
-	);
+	/* Update current task pointer */
+	m65832_current_task = next;
 
 	return prev;
 }

@@ -3,49 +3,56 @@
  * M65832 Linux
  *
  * User-space memory access for the M65832 architecture.
+ *
+ * Modern kernels removed set_fs/get_fs. User access is checked by
+ * verifying addresses are below TASK_SIZE.
  */
 
 #ifndef _ASM_M65832_UACCESS_H
 #define _ASM_M65832_UACCESS_H
 
 #include <linux/string.h>
+#include <linux/thread_info.h>
+#include <linux/types.h>
+#include <asm/extable.h>
 #include <asm/page.h>
 
 /*
- * User space memory segment limit
+ * User space is below PAGE_OFFSET (TASK_SIZE)
  */
-#define KERNEL_DS	((mm_segment_t) { 0 })
-#define USER_DS		((mm_segment_t) { PAGE_OFFSET })
-
-#define get_fs()	(current_thread_info()->addr_limit)
-#define set_fs(x)	(current_thread_info()->addr_limit = (x))
-
-#define uaccess_kernel()	(get_fs().seg == KERNEL_DS.seg)
+#define user_addr_max()	TASK_SIZE
 
 /*
  * Check if a user pointer is valid
  */
-static inline int __access_ok(unsigned long addr, unsigned long size)
+static inline int __access_ok(const void __user *addr, unsigned long size)
 {
-	return (addr + size <= current_thread_info()->addr_limit.seg) &&
-	       (addr + size >= addr);
+	unsigned long a = (unsigned long)addr;
+	/* Check for overflow and that it's in user space */
+	return (a + size >= a) && (a + size <= TASK_SIZE);
 }
 
-#define access_ok(addr, size)	__access_ok((unsigned long)(addr), (size))
+#define access_ok(addr, size)	__access_ok((addr), (size))
 
 /*
  * Get a simple variable from user space
+ * For M65832, we do a direct copy with access check
+ */
+/*
+ * Use a char[] buffer to avoid const/type-punning issues.
+ * The buffer is copied from user space, then into the destination
+ * variable via memcpy, which handles all type combinations safely.
  */
 #define get_user(x, ptr)						\
 ({									\
-	int __gu_err = 0;						\
-	__typeof__(*(ptr)) __gu_val = 0;				\
-	if (access_ok(ptr, sizeof(*(ptr)))) {				\
-		__gu_val = *(ptr);					\
-	} else {							\
-		__gu_err = -EFAULT;					\
+	int __gu_err = -EFAULT;						\
+	if (access_ok((ptr), sizeof(*(ptr)))) {				\
+		char __gu_buf[sizeof(*(ptr))];				\
+		memcpy(__gu_buf, (const void __user *)(ptr),		\
+		       sizeof(*(ptr)));					\
+		memcpy(&(x), __gu_buf, sizeof(*(ptr)));			\
+		__gu_err = 0;						\
 	}								\
-	(x) = __gu_val;							\
 	__gu_err;							\
 })
 
@@ -56,11 +63,11 @@ static inline int __access_ok(unsigned long addr, unsigned long size)
  */
 #define put_user(x, ptr)						\
 ({									\
-	int __pu_err = 0;						\
-	if (access_ok(ptr, sizeof(*(ptr)))) {				\
-		*(ptr) = (x);						\
-	} else {							\
-		__pu_err = -EFAULT;					\
+	int __pu_err = -EFAULT;						\
+	__typeof__(*(ptr)) __user *__pu_ptr = (ptr);			\
+	if (access_ok(__pu_ptr, sizeof(*__pu_ptr))) {			\
+		*__pu_ptr = (x);					\
+		__pu_err = 0;						\
 	}								\
 	__pu_err;							\
 })
@@ -109,43 +116,11 @@ __clear_user(void __user *to, unsigned long n)
 #define clear_user(to, n)	__clear_user(to, n)
 
 /*
- * String length in user space
+ * strncpy_from_user and strnlen_user are provided by
+ * generic lib/strncpy_from_user.c and lib/strnlen_user.c
+ * (CONFIG_GENERIC_STRNCPY_FROM_USER, CONFIG_GENERIC_STRNLEN_USER)
  */
-static inline long
-strnlen_user(const char __user *str, long count)
-{
-	const char *end;
-	long len;
-
-	if (!access_ok(str, 1))
-		return 0;
-
-	end = memchr(str, 0, count);
-	if (end)
-		len = end - str + 1;
-	else
-		len = count;
-
-	return len;
-}
-
-/*
- * Copy string from user space
- */
-static inline long
-strncpy_from_user(char *dst, const char __user *src, long count)
-{
-	long res = -EFAULT;
-
-	if (access_ok(src, 1)) {
-		const char *end = memchr(src, 0, count);
-		long len = end ? (end - src) : count;
-		memcpy(dst, src, len);
-		if (len < count)
-			dst[len] = '\0';
-		res = len;
-	}
-	return res;
-}
+extern long strncpy_from_user(char *dst, const char __user *src, long count);
+extern long strnlen_user(const char __user *str, long count);
 
 #endif /* _ASM_M65832_UACCESS_H */

@@ -51,6 +51,11 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
 #define elf_check_arch(x)	((x)->e_machine == EM_M65832)
 
 /*
+ * Hardware capabilities bitmask (none for now)
+ */
+#define ELF_HWCAP	(0)
+
+/*
  * These are used to set parameters in the core dumps
  */
 #define ELF_EXEC_PAGESIZE	PAGE_SIZE
@@ -64,7 +69,7 @@ typedef elf_fpreg_t elf_fpregset_t[ELF_NFPREG];
  * ELF core dump support
  */
 #define ELF_CORE_COPY_REGS(dest, regs)	\
-	*(struct pt_regs *)&(dest) = *(regs)
+	memcpy(&(dest), (regs), sizeof(*(regs)));
 
 /*
  * Instruction used to trigger a software breakpoint

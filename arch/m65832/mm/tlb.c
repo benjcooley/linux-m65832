@@ -7,6 +7,7 @@
 
 #include <linux/mm.h>
 #include <linux/sched.h>
+#include <asm-generic/tlb.h>
 
 #include <asm/tlbflush.h>
 #include <asm/mmu.h>

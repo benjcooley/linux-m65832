@@ -66,9 +66,28 @@ static inline void syscall_get_arguments(struct task_struct *task,
 	args[5] = regs->r6;
 }
 
+static inline void syscall_set_nr(struct task_struct *task,
+				  struct pt_regs *regs, int nr)
+{
+	regs->r0 = nr;
+}
+
+static inline void syscall_set_arguments(struct task_struct *task,
+					 struct pt_regs *regs,
+					 const unsigned long *args)
+{
+	regs->r1 = args[0];
+	regs->r2 = args[1];
+	regs->r3 = args[2];
+	regs->r4 = args[3];
+	regs->r5 = args[4];
+	regs->r6 = args[5];
+}
+
 static inline int syscall_get_arch(struct task_struct *task)
 {
-	return AUDIT_ARCH_M65832;
+	/* No audit arch defined yet - use 0 */
+	return 0;
 }
 
 #endif /* _ASM_M65832_SYSCALL_H */

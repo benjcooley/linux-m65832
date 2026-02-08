@@ -127,7 +127,7 @@ static int setup_frame(struct ksignal *ksig, sigset_t *set,
 
 	/* Set up to return from signal handler */
 	/* Trampoline: call sigreturn syscall */
-	err |= __put_user(0xA9000000 | __NR_sigreturn, &frame->retcode[0]); /* LDA #syscall */
+	err |= __put_user(0xA9000000 | __NR_rt_sigreturn, &frame->retcode[0]); /* LDA #syscall */
 	err |= __put_user(0x00000000, &frame->retcode[1]); /* TRAP */
 
 	if (err)

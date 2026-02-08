@@ -1623,3 +1623,20 @@ endmenu
 
 config SERIAL_MCTRL_GPIO
 	tristate
+
+config SERIAL_M65832
+	bool "M65832 UART serial support"
+	depends on M65832
+	select SERIAL_CORE
+	select SERIAL_CORE_CONSOLE
+	default y
+	help
+	  Serial driver for the M65832 platform UART.
+	  Provides console and tty serial port.
+
+config SERIAL_M65832_CONSOLE
+	bool "M65832 UART console support"
+	depends on SERIAL_M65832
+	select SERIAL_EARLYCON
+	default y
+

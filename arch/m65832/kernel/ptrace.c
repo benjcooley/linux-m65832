@@ -7,6 +7,7 @@
 
 #include <linux/kernel.h>
 #include <linux/sched.h>
+#include <linux/sched/task_stack.h>
 #include <linux/ptrace.h>
 #include <linux/regset.h>
 #include <linux/elf.h>
@@ -95,28 +96,25 @@ long arch_ptrace(struct task_struct *child, long request,
 }
 
 /*
+ * Called when a process is detached from ptrace.
+ * On M65832 there is no per-thread debug state to clear.
+ */
+void ptrace_disable(struct task_struct *child)
+{
+	/* Nothing to do */
+}
+
+/*
  * System call entry tracing
  */
 asmlinkage long syscall_trace_enter(struct pt_regs *regs)
 {
-	long ret = 0;
-
 	if (test_thread_flag(TIF_SYSCALL_TRACE)) {
 		if (ptrace_report_syscall_entry(regs))
 			return -1;
 	}
 
-	/* Seccomp */
-	ret = secure_computing();
-	if (ret)
-		return ret;
-
-	/* Audit */
-	if (unlikely(current->audit_context))
-		audit_syscall_entry(regs->r0, regs->r1, regs->r2,
-				    regs->r3, regs->r4);
-
-	return ret;
+	return 0;
 }
 
 /*
@@ -124,9 +122,6 @@ asmlinkage long syscall_trace_enter(struct pt_regs *regs)
  */
 asmlinkage void syscall_trace_exit(struct pt_regs *regs)
 {
-	if (unlikely(current->audit_context))
-		audit_syscall_exit(regs);
-
 	if (test_thread_flag(TIF_SYSCALL_TRACE))
 		ptrace_report_syscall_exit(regs, 0);
 }

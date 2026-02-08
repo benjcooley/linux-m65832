@@ -32,10 +32,7 @@
 #define __smp_rmb()	rmb()
 #define __smp_wmb()	wmb()
 
-/*
- * Compiler barrier - prevents compiler reordering
- */
-#define barrier()	asm volatile("" : : : "memory")
+/* barrier() is provided by linux/compiler.h */
 
 /*
  * Read/write barriers for I/O - always use full barriers

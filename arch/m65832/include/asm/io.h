@@ -20,16 +20,19 @@
 /*
  * Memory-mapped I/O read functions
  */
+#define __raw_readb __raw_readb
 static inline u8 __raw_readb(const volatile void __iomem *addr)
 {
 	return *(const volatile u8 __force *)addr;
 }
 
+#define __raw_readw __raw_readw
 static inline u16 __raw_readw(const volatile void __iomem *addr)
 {
 	return *(const volatile u16 __force *)addr;
 }
 
+#define __raw_readl __raw_readl
 static inline u32 __raw_readl(const volatile void __iomem *addr)
 {
 	return *(const volatile u32 __force *)addr;
@@ -38,16 +41,19 @@ static inline u32 __raw_readl(const volatile void __iomem *addr)
 /*
  * Memory-mapped I/O write functions
  */
+#define __raw_writeb __raw_writeb
 static inline void __raw_writeb(u8 val, volatile void __iomem *addr)
 {
 	*(volatile u8 __force *)addr = val;
 }
 
+#define __raw_writew __raw_writew
 static inline void __raw_writew(u16 val, volatile void __iomem *addr)
 {
 	*(volatile u16 __force *)addr = val;
 }
 
+#define __raw_writel __raw_writel
 static inline void __raw_writel(u32 val, volatile void __iomem *addr)
 {
 	*(volatile u32 __force *)addr = val;
@@ -66,6 +72,7 @@ static inline void __raw_writel(u32 val, volatile void __iomem *addr)
 /*
  * Regular I/O - with memory barriers
  */
+#define readb readb
 static inline u8 readb(const volatile void __iomem *addr)
 {
 	u8 val = __raw_readb(addr);
@@ -73,6 +80,7 @@ static inline u8 readb(const volatile void __iomem *addr)
 	return val;
 }
 
+#define readw readw
 static inline u16 readw(const volatile void __iomem *addr)
 {
 	u16 val = __raw_readw(addr);
@@ -80,6 +88,7 @@ static inline u16 readw(const volatile void __iomem *addr)
 	return val;
 }
 
+#define readl readl
 static inline u32 readl(const volatile void __iomem *addr)
 {
 	u32 val = __raw_readl(addr);
@@ -87,18 +96,21 @@ static inline u32 readl(const volatile void __iomem *addr)
 	return val;
 }
 
+#define writeb writeb
 static inline void writeb(u8 val, volatile void __iomem *addr)
 {
 	wmb();
 	__raw_writeb(val, addr);
 }
 
+#define writew writew
 static inline void writew(u16 val, volatile void __iomem *addr)
 {
 	wmb();
 	__raw_writew(val, addr);
 }
 
+#define writel writel
 static inline void writel(u32 val, volatile void __iomem *addr)
 {
 	wmb();
@@ -108,6 +120,7 @@ static inline void writel(u32 val, volatile void __iomem *addr)
 /*
  * String I/O operations
  */
+#define readsb readsb
 static inline void readsb(const volatile void __iomem *addr, void *buf, unsigned long count)
 {
 	u8 *p = buf;
@@ -115,6 +128,7 @@ static inline void readsb(const volatile void __iomem *addr, void *buf, unsigned
 		*p++ = __raw_readb(addr);
 }
 
+#define readsw readsw
 static inline void readsw(const volatile void __iomem *addr, void *buf, unsigned long count)
 {
 	u16 *p = buf;
@@ -122,6 +136,7 @@ static inline void readsw(const volatile void __iomem *addr, void *buf, unsigned
 		*p++ = __raw_readw(addr);
 }
 
+#define readsl readsl
 static inline void readsl(const volatile void __iomem *addr, void *buf, unsigned long count)
 {
 	u32 *p = buf;
@@ -129,6 +144,7 @@ static inline void readsl(const volatile void __iomem *addr, void *buf, unsigned
 		*p++ = __raw_readl(addr);
 }
 
+#define writesb writesb
 static inline void writesb(volatile void __iomem *addr, const void *buf, unsigned long count)
 {
 	const u8 *p = buf;
@@ -136,6 +152,7 @@ static inline void writesb(volatile void __iomem *addr, const void *buf, unsigne
 		__raw_writeb(*p++, addr);
 }
 
+#define writesw writesw
 static inline void writesw(volatile void __iomem *addr, const void *buf, unsigned long count)
 {
 	const u16 *p = buf;
@@ -143,6 +160,7 @@ static inline void writesw(volatile void __iomem *addr, const void *buf, unsigne
 		__raw_writew(*p++, addr);
 }
 
+#define writesl writesl
 static inline void writesl(volatile void __iomem *addr, const void *buf, unsigned long count)
 {
 	const u32 *p = buf;
@@ -152,7 +170,12 @@ static inline void writesl(volatile void __iomem *addr, const void *buf, unsigne
 
 /*
  * Memory copy I/O
+ * Guard macros prevent redefinition by generic lib/iomem_copy.c
  */
+#define memcpy_fromio memcpy_fromio
+#define memcpy_toio memcpy_toio
+#define memset_io memset_io
+
 static inline void memcpy_fromio(void *dest, const volatile void __iomem *src, size_t count)
 {
 	u8 *d = dest;
@@ -177,11 +200,9 @@ static inline void memset_io(volatile void __iomem *dest, int c, size_t count)
 }
 
 /*
- * I/O remapping - handled by mm/ioremap.c
+ * I/O remapping - provided by generic ioremap (GENERIC_IOREMAP).
+ * asm-generic/io.h provides ioremap/iounmap declarations.
  */
-void __iomem *ioremap(phys_addr_t phys_addr, size_t size);
-void iounmap(volatile void __iomem *addr);
-
 #define ioremap_wc		ioremap
 #define ioremap_wt		ioremap
 #define ioremap_np		ioremap

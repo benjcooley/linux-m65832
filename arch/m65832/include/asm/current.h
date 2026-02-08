@@ -4,9 +4,9 @@
  *
  * Current task pointer access for the M65832 architecture.
  *
- * On M65832, we keep:
- *   R24 - pointer to current thread_info
- *   R25 - pointer to current task_struct
+ * For initial bring-up we use a simple global variable.
+ * TODO: Use a dedicated register (R25) once inline asm syntax
+ *       is finalized with the LLVM backend.
  */
 
 #ifndef _ASM_M65832_CURRENT_H
@@ -18,22 +18,9 @@
 
 struct task_struct;
 
-/*
- * Get the current task_struct pointer from R25
- */
-static __always_inline struct task_struct *get_current(void)
-{
-	struct task_struct *current_task;
+extern struct task_struct *m65832_current_task;
 
-	asm volatile(
-		"LD %0, R25"
-		: "=r" (current_task)
-	);
-
-	return current_task;
-}
-
-#define current get_current()
+#define current m65832_current_task
 
 #endif /* !__ASSEMBLY__ */
 

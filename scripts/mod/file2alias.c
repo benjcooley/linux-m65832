@@ -107,9 +107,17 @@ typedef struct {
 	__u8 b[16];
 } guid_t;
 
+/* Avoid conflict with macOS uuid_t */
+#ifdef __APPLE__
+typedef struct {
+	__u8 b[16];
+} kernel_uuid_t;
+#define uuid_t kernel_uuid_t
+#else
 typedef struct {
 	__u8 b[16];
 } uuid_t;
+#endif
 
 #define	UUID_STRING_LEN		36
 

@@ -107,14 +107,7 @@ static inline void local_flush_tlb_kernel_range(unsigned long start,
 #define flush_tlb_range(vma, start, end) local_flush_tlb_range(vma, start, end)
 #define flush_tlb_kernel_range(start, end) local_flush_tlb_kernel_range(start, end)
 
-/*
- * Update TLB for a PTE change
- */
-static inline void update_mmu_cache(struct vm_area_struct *vma,
-				    unsigned long addr, pte_t *ptep)
-{
-	/* M65832 handles TLB refills in hardware on fault, no action needed */
-}
+/* update_mmu_cache is defined in pgtable.h */
 
 #endif /* !__ASSEMBLY__ */
 

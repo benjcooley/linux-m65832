@@ -19,9 +19,9 @@
 void __delay(unsigned long loops)
 {
 	asm volatile(
-		".LDELAY:\n\t"
+		"1:\n\t"
 		"DEC A\n\t"		/* Decrement counter */
-		"BNE .LDELAY"		/* Loop if not zero */
+		"BNE 1b"		/* Loop if not zero */
 		:
 		: "a" (loops)
 		: "cc"

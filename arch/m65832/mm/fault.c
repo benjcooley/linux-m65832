@@ -8,10 +8,23 @@
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/sched/signal.h>
+#include <linux/sched/debug.h>
 #include <linux/perf_event.h>
 
 #include <asm/ptrace.h>
 #include <asm/mmu.h>
+
+/*
+ * Simple die function for kernel oops
+ * TODO: Move to a proper traps.c
+ */
+static void die(const char *msg, struct pt_regs *regs, unsigned long err)
+{
+	console_verbose();
+	pr_emerg("%s: %04lx\n", msg, err);
+	show_regs(regs);
+	do_exit(SIGSEGV);
+}
 
 /*
  * Page fault handler
@@ -38,12 +51,6 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long address)
 	if (user_mode(regs))
 		flags |= FAULT_FLAG_USER;
 
-	/*
-	 * Determine if this was a read or write fault
-	 * TODO: Read fault type from hardware register
-	 */
-	/* For now, assume write fault if in kernel mode writing */
-
 	perf_sw_event(PERF_COUNT_SW_PAGE_FAULTS, 1, regs, address);
 
 retry:
@@ -59,15 +66,11 @@ retry:
 	if (!(vma->vm_flags & VM_GROWSDOWN))
 		goto bad_area;
 
-	if (expand_stack(vma, address))
-		goto bad_area;
+	vma = expand_stack(mm, address);
+	if (!vma)
+		goto bad_area_nosemaphore;
 
 good_area:
-	/*
-	 * Check permissions
-	 */
-	/* TODO: Check read/write/execute permissions based on fault type */
-
 	/*
 	 * Handle the fault
 	 */
@@ -97,17 +100,13 @@ good_area:
 
 bad_area:
 	mmap_read_unlock(mm);
-
+bad_area_nosemaphore:
 	if (user_mode(regs)) {
-		/* Send SIGSEGV to user process */
 		force_sig_fault(SIGSEGV, SEGV_MAPERR, (void __user *)address);
 		return;
 	}
 
 no_context:
-	/*
-	 * Kernel mode page fault with no handler
-	 */
 	pr_emerg("Unable to handle kernel %s at virtual address %08lx\n",
 		 address < PAGE_SIZE ? "NULL pointer dereference" : "paging request",
 		 address);

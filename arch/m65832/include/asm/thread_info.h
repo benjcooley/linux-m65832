@@ -48,7 +48,6 @@
 struct thread_info {
 	unsigned long		flags;		/* low level flags */
 	int			preempt_count;	/* 0 => preemptable, <0 => BUG */
-	mm_segment_t		addr_limit;	/* thread address space limit */
 	int			cpu;		/* current CPU */
 };
 
@@ -59,28 +58,12 @@ struct thread_info {
 {						\
 	.flags		= 0,			\
 	.preempt_count	= INIT_PREEMPT_COUNT,	\
-	.addr_limit	= KERNEL_DS,		\
 }
 
 /*
- * Get the thread_info for the current thread.
- * On M65832, we keep the thread_info pointer in R24.
+ * With THREAD_INFO_IN_TASK, current_thread_info() is provided by
+ * include/linux/thread_info.h using the task_struct.
  */
-static inline struct thread_info *current_thread_info(void)
-{
-	struct thread_info *ti;
-
-	/*
-	 * The thread_info is stored at the base of the kernel stack.
-	 * We keep a pointer to it in R24 for fast access.
-	 */
-	asm volatile(
-		"LD %0, R24"
-		: "=r" (ti)
-	);
-
-	return ti;
-}
 
 #endif /* !__ASSEMBLY__ */
 

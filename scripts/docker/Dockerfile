@@ -20,13 +20,16 @@ RUN apt-get update && apt-get install -y \
     python3 \
     rsync \
     device-tree-compiler \
+    clang \
+    lld \
     && rm -rf /var/lib/apt/lists/*
 
 # Create build user (same UID as host user for volume permissions)
 ARG UID=1000
 ARG GID=1000
-RUN groupadd -g ${GID} builder && \
-    useradd -u ${UID} -g ${GID} -m builder
+RUN groupadd -g ${GID} builder 2>/dev/null || true && \
+    useradd -u ${UID} -g ${GID} -m builder 2>/dev/null || \
+    useradd -u ${UID} -m builder
 
 # Working directory
 WORKDIR /build

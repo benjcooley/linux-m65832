@@ -24,12 +24,14 @@ static inline void flush_dcache_range(unsigned long start, unsigned long end)
 }
 
 /* Flush instruction cache for a virtual address range */
+#define flush_icache_range flush_icache_range
 static inline void flush_icache_range(unsigned long start, unsigned long end)
 {
 	mb();
 }
 
 /* Flush data cache for a page */
+#define ARCH_IMPLEMENTS_FLUSH_DCACHE_PAGE 1
 static inline void flush_dcache_page(struct page *page)
 {
 	mb();

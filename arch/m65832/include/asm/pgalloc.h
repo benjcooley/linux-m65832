@@ -3,43 +3,51 @@
  * M65832 Linux
  *
  * Page table allocation for the M65832 architecture.
+ *
+ * With pgtable-nopmd folding, our 2-level table works as:
+ *   PGD (folded) -> PMD (= PGD, the real top-level) -> PTE
+ *
+ * The folding headers define pgd_populate, pgd_alloc, pgd_free etc.
+ * We only need to provide pmd_populate (which populates what is
+ * physically our PGD entries to point to PTE tables).
  */
 
 #ifndef _ASM_M65832_PGALLOC_H
 #define _ASM_M65832_PGALLOC_H
 
-#include <linux/mm.h>
 #include <asm/pgtable.h>
 
 /*
- * Allocate and free page directory entries
- * PGD requires 8KB (2 pages) for 1024 × 8-byte entries
+ * Populate a PMD entry with a PTE table address (kernel context).
+ * Due to nopmd folding, a PMD entry IS a PGD entry.
  */
-static inline pgd_t *pgd_alloc(struct mm_struct *mm)
+static inline void pmd_populate_kernel(struct mm_struct *mm,
+				       pmd_t *pmd, pte_t *pte)
 {
-	pgd_t *pgd = (pgd_t *)__get_free_pages(GFP_KERNEL | __GFP_ZERO, PGD_ORDER);
-	return pgd;
-}
-
-static inline void pgd_free(struct mm_struct *mm, pgd_t *pgd)
-{
-	free_pages((unsigned long)pgd, PGD_ORDER);
+	set_pmd(pmd, __pmd(__pa(pte) | _PAGE_TABLE));
 }
 
 /*
- * Populate PGD entry with PTE table
+ * Populate a PMD entry with a PTE table page (user context).
  */
-static inline void pgd_populate(struct mm_struct *mm, pgd_t *pgd, pte_t *pte)
+static inline void pmd_populate(struct mm_struct *mm,
+				pmd_t *pmd, pgtable_t pte_page)
 {
-	*pgd = __pgd(__pa(pte) | _PAGE_TABLE);
+	set_pmd(pmd, __pmd(page_to_phys(pte_page) | _PAGE_TABLE));
 }
-
-/*
- * PTE table allocation handled in pgtable.h
- */
 
 #define pmd_pgtable(pmd)	pmd_page(pmd)
 
 #include <asm-generic/pgalloc.h>
+
+/*
+ * pgd_alloc - allocate a PGD.
+ * Uses the generic __pgd_alloc with order 0 (single page).
+ */
+static inline pgd_t *pgd_alloc(struct mm_struct *mm)
+{
+	return __pgd_alloc(mm, 0);
+}
+#define pgd_alloc pgd_alloc
 
 #endif /* _ASM_M65832_PGALLOC_H */

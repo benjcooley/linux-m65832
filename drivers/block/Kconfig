@@ -373,3 +373,12 @@ config BLK_DEV_ZONED_LOOP
 	  If unsure, say N.
 
 endif # BLK_DEV
+
+config BLK_DEV_M65832
+	bool "M65832 block device support"
+	depends on M65832
+	default y
+	help
+	  Block device driver for the M65832 platform SD controller.
+	  Supports DMA-based sector read/write.
+

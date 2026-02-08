@@ -11,12 +11,38 @@
 #include <linux/memblock.h>
 #include <linux/initrd.h>
 #include <linux/swap.h>
+#include <linux/export.h>
 
 #include <asm/page.h>
 #include <asm/pgtable.h>
+#include <asm/pgalloc.h>
 #include <asm/mmu.h>
 #include <asm/setup.h>
 #include <asm/sections.h>
+
+/*
+ * Page protection map.
+ * Indexed by vm_flags & (VM_READ|VM_WRITE|VM_EXEC|VM_SHARED).
+ */
+static const pgprot_t protection_map[16] = {
+	[VM_NONE]					= PAGE_NONE,
+	[VM_READ]					= PAGE_READONLY,
+	[VM_WRITE]					= PAGE_COPY,
+	[VM_WRITE | VM_READ]				= PAGE_COPY,
+	[VM_EXEC]					= PAGE_READONLY,
+	[VM_EXEC | VM_READ]				= PAGE_READONLY,
+	[VM_EXEC | VM_WRITE]				= PAGE_COPY,
+	[VM_EXEC | VM_WRITE | VM_READ]			= PAGE_COPY,
+	[VM_SHARED]					= PAGE_NONE,
+	[VM_SHARED | VM_READ]				= PAGE_READONLY,
+	[VM_SHARED | VM_WRITE]				= PAGE_SHARED,
+	[VM_SHARED | VM_WRITE | VM_READ]		= PAGE_SHARED,
+	[VM_SHARED | VM_EXEC]				= PAGE_READONLY,
+	[VM_SHARED | VM_EXEC | VM_READ]		= PAGE_READONLY,
+	[VM_SHARED | VM_EXEC | VM_WRITE]		= PAGE_SHARED,
+	[VM_SHARED | VM_EXEC | VM_WRITE | VM_READ]	= PAGE_SHARED,
+};
+DECLARE_VM_GET_PAGE_PROT
 
 /*
  * Kernel page directory (swapper_pg_dir)
@@ -30,11 +56,11 @@ unsigned long empty_zero_page[PAGE_SIZE / sizeof(unsigned long)] __page_aligned_
 EXPORT_SYMBOL(empty_zero_page);
 
 /*
- * Memory boundaries
+ * Memory boundaries - declared in mm/memblock.c, just use extern here
  */
-unsigned long max_low_pfn;
-unsigned long min_low_pfn;
-unsigned long max_pfn;
+extern unsigned long max_low_pfn;
+extern unsigned long min_low_pfn;
+extern unsigned long max_pfn;
 
 /*
  * Set up initial page tables for the kernel
@@ -43,10 +69,13 @@ static void __init setup_kernel_pagetables(void)
 {
 	unsigned long vaddr, paddr;
 	pgd_t *pgd;
+	p4d_t *p4d;
+	pud_t *pud;
+	pmd_t *pmd;
 	pte_t *pte;
 	unsigned long kernel_end_pfn;
 
-	early_printk("M65832: Setting up kernel page tables\n");
+	pr_info("M65832: Setting up kernel page tables\n");
 
 	/* Clear swapper_pg_dir */
 	memset(swapper_pg_dir, 0, sizeof(swapper_pg_dir));
@@ -59,24 +88,28 @@ static void __init setup_kernel_pagetables(void)
 
 	for (paddr = 0; paddr < (kernel_end_pfn << PAGE_SHIFT); paddr += PAGE_SIZE) {
 		vaddr = (unsigned long)__va(paddr);
-		
+
+		/* Walk the folded page table levels */
 		pgd = pgd_offset_k(vaddr);
-		
+		p4d = p4d_offset(pgd, vaddr);
+		pud = pud_offset(p4d, vaddr);
+		pmd = pmd_offset(pud, vaddr);
+
 		/* Allocate PTE table if needed */
-		if (pgd_none(*pgd)) {
+		if (pmd_none(*pmd)) {
 			pte = memblock_alloc(PAGE_SIZE, PAGE_SIZE);
 			if (!pte)
 				panic("Failed to allocate PTE table");
 			memset(pte, 0, PAGE_SIZE);
-			*pgd = __pgd(__pa(pte) | _PAGE_TABLE);
+			set_pmd(pmd, __pmd(__pa(pte) | _PAGE_TABLE));
 		}
 
 		/* Map the page */
-		pte = pte_offset_kernel(pgd, vaddr);
-		*pte = pfn_pte(paddr >> PAGE_SHIFT, PAGE_KERNEL);
+		pte = pte_offset_kernel(pmd, vaddr);
+		set_pte(pte, pfn_pte(paddr >> PAGE_SHIFT, PAGE_KERNEL));
 	}
 
-	early_printk("M65832: Kernel mapped %lu pages\n", kernel_end_pfn);
+	pr_info("M65832: Kernel mapped %lu pages\n", kernel_end_pfn);
 }
 
 /*
@@ -87,7 +120,7 @@ void __init paging_init(void)
 	unsigned long zones_size[MAX_NR_ZONES];
 	unsigned long start_pfn, end_pfn;
 
-	early_printk("M65832: Initializing paging\n");
+	pr_info("M65832: Initializing paging\n");
 
 	/* Set up page tables */
 	setup_kernel_pagetables();
@@ -107,20 +140,19 @@ void __init paging_init(void)
 	/* Initialize memory zones */
 	free_area_init(zones_size);
 
-	early_printk("M65832: Memory: %luMB\n",
+	pr_info("M65832: Memory: %luMB\n",
 		     (max_pfn - min_low_pfn) >> (20 - PAGE_SHIFT));
 }
 
 /*
  * Memory initialization
+ * memblock_free_all() is called by mm_core_init() in mm/mm_init.c
+ * before this function. We just do any arch-specific setup.
  */
 void __init mem_init(void)
 {
-	/* Free all bootmem */
-	memblock_free_all();
-
-	/* Calculate memory statistics */
-	mem_init_print_info(NULL);
+	/* Clear the zero page */
+	memset((void *)empty_zero_page, 0, PAGE_SIZE);
 }
 
 /*

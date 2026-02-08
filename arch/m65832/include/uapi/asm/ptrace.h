@@ -43,22 +43,25 @@
 #define M65832_REG_R29		29
 #define M65832_REG_R30		30
 #define M65832_REG_A		31
-#define M65832_REG_X		32
-#define M65832_REG_Y		33
-#define M65832_REG_SP		34
-#define M65832_REG_PC		35
-#define M65832_REG_STATUS	36
-#define M65832_NUM_REGS		37
+#define M65832_REG_B		32
+#define M65832_REG_X		33
+#define M65832_REG_Y		34
+#define M65832_REG_SP		35
+#define M65832_REG_PC		36
+#define M65832_REG_STATUS	37
+#define M65832_NUM_REGS		38
 
+#ifndef __ASSEMBLY__
 /*
  * User-space view of registers
  */
 struct user_regs_struct {
-	unsigned long regs[31];		/* R0-R30 */
-	unsigned long a, x, y;		/* Legacy registers */
+	unsigned long regs[31];		/* R0-R30 (R30=link register) */
+	unsigned long a, b, x, y;	/* 6502-style registers (B=frame pointer) */
 	unsigned long sp;		/* Stack pointer */
 	unsigned long pc;		/* Program counter */
 	unsigned long status;		/* Status register */
 };
+#endif /* !__ASSEMBLY__ */
 
 #endif /* _UAPI_ASM_M65832_PTRACE_H */
