@@ -369,22 +369,46 @@ ENTRY(ret_from_kernel_thread)
 ENDPROC(ret_from_kernel_thread)
 
 /*
- * Exception vector table
+ * Exception vector table - M65832 Extended Vectors
+ *
+ * Must be placed at PHYSICAL addresses $0000FFD0-$0000FFFF.
+ * Vector reads bypass MMU (hardware reads from physical memory).
+ * Each entry is 4 bytes (32-bit handler address).
+ *
+ * Hardware vector layout:
+ *   $FFD0: Page Fault
+ *   $FFD4: SYSCALL (TRAP base)
+ *   $FFD8: Reserved
+ *   $FFDC: Reserved
+ *   $FFE0: Reserved
+ *   $FFE4: COP
+ *   $FFE6: BRK      (note: 2-byte entries in legacy region)
+ *   $FFE8: ABORT
+ *   $FFEA: NMI
+ *   $FFEC: Reserved
+ *   $FFEE: IRQ
+ *   $FFF0: Reserved
+ *   $FFF4: Reserved
+ *   $FFF8: Illegal Instruction
+ *   $FFFC: Reset
  */
 	.section ".vectors", "ax"
-	.align 4
-exception_vectors:
-	.long	page_fault_entry	/* Page Fault */
-	.long	0			/* Reserved */
-	.long	system_call		/* SYSCALL */
-	.long	0			/* Reserved */
-	.long	0			/* COP */
-	.long	0			/* COP */
-	.long	0			/* BRK */
-	.long	0			/* ABORT */
-	.long	nmi_entry		/* NMI */
-	.long	0			/* Reserved */
-	.long	irq_entry		/* IRQ */
-	.long	0			/* Reserved */
-	.long	illegal_insn_entry	/* Illegal Instruction */
-	.long	0			/* Reset */
+
+	/*
+	 * M65832 exception vector table.
+	 * Placed at physical $0000FFD0 by the linker script.
+	 * Hardware reads vectors from PHYSICAL memory (bypasses MMU).
+	 * Each entry is 4 bytes (32-bit handler address).
+	 */
+	.long	page_fault_entry	/* +$00 = $FFD0: Page Fault */
+	.long	system_call		/* +$04 = $FFD4: SYSCALL */
+	.long	0			/* +$08 = $FFD8: Reserved */
+	.long	0			/* +$0C = $FFDC: Reserved */
+	.long	0			/* +$10 = $FFE0: Reserved */
+	.long	0			/* +$14 = $FFE4: COP */
+	.long	0			/* +$18 = $FFE8: ABORT */
+	.long	nmi_entry		/* +$1C = $FFEC: NMI */
+	.long	irq_entry		/* +$20 = $FFF0: IRQ */
+	.long	0			/* +$24 = $FFF4: Reserved */
+	.long	illegal_insn_entry	/* +$28 = $FFF8: Illegal Instruction */
+	.long	0			/* +$2C = $FFFC: Reset */

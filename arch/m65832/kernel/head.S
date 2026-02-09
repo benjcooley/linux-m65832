@@ -80,6 +80,36 @@ ENTRY(_start)
 2:
 
 	/*
+	 * Copy exception vector table to physical $0000FFD0.
+	 * Hardware reads vectors from physical memory (bypasses MMU).
+	 * __vectors_start/__vectors_end are virtual, convert to physical.
+	 */
+	LDA #__vectors_start
+	VIRT_TO_PHYS
+	STA R0			/* R0 = source (physical) */
+	LDA #0x0000FFD0
+	STA R1			/* R1 = destination (physical $FFD0) */
+	LDA #__vectors_end
+	VIRT_TO_PHYS
+	STA R2			/* R2 = source end */
+1:
+	LDA R0
+	CMP R2
+	BCS 2f
+	LDA (R0)		/* Read vector entry */
+	STA (R1)		/* Write to physical $FFD0+ */
+	LDA R0
+	CLC
+	ADC #4
+	STA R0
+	LDA R1
+	CLC
+	ADC #4
+	STA R1
+	BRA 1b
+2:
+
+	/*
 	 * Set up initial page tables (64-bit entries).
 	 * Must use physical address for call (MMU still off).
 	 */

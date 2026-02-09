@@ -68,6 +68,11 @@ SECTIONS
  _edata = .;
  . = ALIGN(4); __bss_start = .; . = ALIGN(4); .sbss : AT(ADDR(.sbss) - (0x80000000 - 0x00100000)) { *(.dynsbss) *(.sbss .sbss.[0-9a-zA-Z_]*) *(.scommon) } . = ALIGN(4); .bss : AT(ADDR(.bss) - (0x80000000 - 0x00100000)) { . = ALIGN((1 << 12)); *(.bss..page_aligned) . = ALIGN((1 << 12)); *(.dynbss) *(.bss .bss.[0-9a-zA-Z_]* .bss..L* .bss..compoundliteral*) *(COMMON) } . = ALIGN(4); __bss_stop = .;
  _end = .;
+ .vectors : AT(ADDR(.vectors) - (0x80000000 - 0x00100000)) {
+  __vectors_start = .;
+  KEEP(*(.vectors))
+  __vectors_end = .;
+ }
  .stab 0 : { *(.stab) } .stabstr 0 : { *(.stabstr) } .stab.excl 0 : { *(.stab.excl) } .stab.exclstr 0 : { *(.stab.exclstr) } .stab.index 0 : { *(.stab.index) } .stab.indexstr 0 : { *(.stab.indexstr) }
  .debug 0 : { *(.debug) } .line 0 : { *(.line) } .debug_srcinfo 0 : { *(.debug_srcinfo) } .debug_sfnames 0 : { *(.debug_sfnames) } .debug_aranges 0 : { *(.debug_aranges) } .debug_pubnames 0 : { *(.debug_pubnames) } .debug_info 0 : { *(.debug_info .gnu.linkonce.wi.*) } .debug_abbrev 0 : { *(.debug_abbrev) } .debug_line 0 : { *(.debug_line) } .debug_frame 0 : { *(.debug_frame) } .debug_str 0 : { *(.debug_str) } .debug_loc 0 : { *(.debug_loc) } .debug_macinfo 0 : { *(.debug_macinfo) } .debug_pubtypes 0 : { *(.debug_pubtypes) } .debug_ranges 0 : { *(.debug_ranges) } .debug_weaknames 0 : { *(.debug_weaknames) } .debug_funcnames 0 : { *(.debug_funcnames) } .debug_typenames 0 : { *(.debug_typenames) } .debug_varnames 0 : { *(.debug_varnames) } .debug_gnu_pubnames 0 : { *(.debug_gnu_pubnames) } .debug_gnu_pubtypes 0 : { *(.debug_gnu_pubtypes) } .debug_types 0 : { *(.debug_types) } .debug_addr 0 : { *(.debug_addr) } .debug_line_str 0 : { *(.debug_line_str) } .debug_loclists 0 : { *(.debug_loclists) } .debug_macro 0 : { *(.debug_macro) } .debug_names 0 : { *(.debug_names) } .debug_rnglists 0 : { *(.debug_rnglists) } .debug_str_offsets 0 : { *(.debug_str_offsets) }
  /DISCARD/ : { *(.exit.text) *(.text.exit .text.exit.*) *(.exit.data .exit.data.*) *(.fini_array .fini_array.*) *(.dtors .dtors.*) *(.exitcall.exit) *(.discard) *(.discard.*) *(.export_symbol) *(.no_trim_symbol) *(.gnu.version*) *(__tracepoint_check) }

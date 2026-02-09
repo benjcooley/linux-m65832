@@ -114,6 +114,17 @@ SECTIONS
 
 	_end = .;
 
+	/*
+	 * Exception vector table data (stored in kernel image).
+	 * head.S copies this to physical $0000FFD0 during early boot.
+	 * Hardware reads vectors from physical memory (bypasses MMU).
+	 */
+	.vectors : AT(ADDR(.vectors) - LOAD_OFFSET) {
+		__vectors_start = .;
+		KEEP(*(.vectors))
+		__vectors_end = .;
+	}
+
 	STABS_DEBUG
 	DWARF_DEBUG
 
