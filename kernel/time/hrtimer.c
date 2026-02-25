@@ -50,6 +50,23 @@
 #include "tick-internal.h"
 
 /*
+ * Avoid backend issues around variable shifts in hrtimer base masks.
+ */
+static const unsigned int m65832_hrtimer_base_bits[] = {
+	0x00000001, 0x00000002, 0x00000004, 0x00000008,
+	0x00000010, 0x00000020, 0x00000040, 0x00000080,
+	0x00000100, 0x00000200, 0x00000400, 0x00000800,
+	0x00001000, 0x00002000, 0x00004000, 0x00008000,
+};
+
+static __always_inline unsigned int hrtimer_base_bit(unsigned int index)
+{
+	if (index >= ARRAY_SIZE(m65832_hrtimer_base_bits))
+		return 0;
+	return m65832_hrtimer_base_bits[index];
+}
+
+/*
  * Masks for selecting the soft and hard context timers from
  * cpu_base->active
  */
@@ -488,14 +505,21 @@ static struct hrtimer_clock_base *
 __next_base(struct hrtimer_cpu_base *cpu_base, unsigned int *active)
 {
 	unsigned int idx;
+	unsigned int mask = *active;
 
-	if (!*active)
+	if (!mask)
 		return NULL;
 
-	idx = __ffs(*active);
-	*active &= ~(1U << idx);
+	for (idx = 0; idx < HRTIMER_MAX_CLOCK_BASES; idx++) {
+		unsigned int bit = 1U << idx;
+		if (!(mask & bit))
+			continue;
+		*active = mask & ~bit;
+		return &cpu_base->clock_base[idx];
+	}
 
-	return &cpu_base->clock_base[idx];
+	*active = 0;
+	return NULL;
 }
 
 #define for_each_active_base(base, cpu_base, active)	\
@@ -1081,7 +1105,7 @@ static bool enqueue_hrtimer(struct hrtimer *timer, struct hrtimer_clock_base *ba
 	debug_activate(timer, mode);
 	WARN_ON_ONCE(!base->cpu_base->online);
 
-	base->cpu_base->active_bases |= 1 << base->index;
+	base->cpu_base->active_bases |= hrtimer_base_bit(base->index);
 
 	/* Pairs with the lockless read in hrtimer_is_queued() */
 	WRITE_ONCE(timer->state, HRTIMER_STATE_ENQUEUED);
@@ -1112,7 +1136,7 @@ static void __remove_hrtimer(struct hrtimer *timer,
 		return;
 
 	if (!timerqueue_del(&base->active, &timer->node))
-		cpu_base->active_bases &= ~(1 << base->index);
+		cpu_base->active_bases &= ~hrtimer_base_bit(base->index);
 
 	/*
 	 * Note: If reprogram is false we do not update
@@ -1806,7 +1830,13 @@ static void __run_hrtimer(struct hrtimer_cpu_base *cpu_base,
 	base->running = NULL;
 }
 
-static void __hrtimer_run_queues(struct hrtimer_cpu_base *cpu_base, ktime_t now,
+#if defined(CONFIG_M65832) && defined(__clang__)
+#define M65832_HRTIMER_OPTNONE __attribute__((optnone))
+#else
+#define M65832_HRTIMER_OPTNONE
+#endif
+
+static M65832_HRTIMER_OPTNONE void __hrtimer_run_queues(struct hrtimer_cpu_base *cpu_base, ktime_t now,
 				 unsigned long flags, unsigned int active_mask)
 {
 	struct hrtimer_clock_base *base;

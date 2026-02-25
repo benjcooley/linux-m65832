@@ -17,9 +17,11 @@
 
 #include <asm/processor.h>
 #include <asm/ptrace.h>
+#include <asm/stacktrace.h>
 #include <asm/switch_to.h>
 #include <asm/current.h>
 #include <asm/elf.h>
+#include <asm/sections.h>
 
 /*
  * Current task pointer (simple global for initial single-core bring-up).
@@ -80,6 +82,8 @@ void machine_restart(char *cmd)
  */
 void show_regs(struct pt_regs *regs)
 {
+	int count = 0;
+
 	pr_info("CPU: 0  PID: %d  Comm: %s\n",
 		current->pid, current->comm);
 	pr_info("PC: %08lx  Status: %08lx\n", regs->pc, regs->status);
@@ -94,6 +98,53 @@ void show_regs(struct pt_regs *regs)
 	pr_info("R30: %08lx (LR)\n", regs->r30);
 	pr_info("  A: %08lx   B: %08lx (FP)   X: %08lx   Y: %08lx  SP: %08lx\n",
 		regs->a, regs->b, regs->x, regs->y, regs->sp);
+
+	/*
+	 * Walk frame pointer chain (like ARM/RISC-V/PowerPC).
+	 *
+	 * M65832 compiler prologue: PHB32; [alloc locals;] TSPB
+	 *   PHB32 pushes old_B with 65816 semantics (store then SP-=4),
+	 *   so after TSPB (B=SP), old_B is at B+1 and the return
+	 *   address (pushed by the caller's JSR) is at B+5.
+	 *
+	 * For functions with N bytes of locals (SP -= N before TSPB),
+	 *   old_B is at B+N+1 and RA at B+N+5.  We scan upward from
+	 *   B+1 looking for a (valid_stack_ptr, kernel_text_addr) pair.
+	 */
+	pr_info("Call Trace:\n");
+	pr_info(" [<%08lx>] %pS\n", regs->pc, (void *)regs->pc);
+	{
+		unsigned long fp = regs->b;
+		unsigned long stack_end;
+
+		stack_end = (unsigned long)task_stack_page(current) + THREAD_SIZE;
+
+		while (fp && fp >= PAGE_OFFSET && count < 32) {
+			unsigned long old_fp = 0;
+			unsigned long ra = 0;
+			int off;
+
+			for (off = 1; off <= 256 && (fp + off + 7) < stack_end; off += 4) {
+				unsigned long cfp = *(unsigned long *)(fp + off);
+				unsigned long cra = *(unsigned long *)(fp + off + 4);
+
+				if (cfp > fp && cfp < stack_end &&
+				    cfp >= PAGE_OFFSET &&
+				    __kernel_text_address(cra)) {
+					old_fp = cfp;
+					ra = cra;
+					break;
+				}
+			}
+
+			if (!old_fp)
+				break;
+
+			pr_info(" [<%08lx>] %pS\n", ra, (void *)ra);
+			fp = old_fp;
+			count++;
+		}
+	}
 }
 
 /*
@@ -122,14 +173,24 @@ asmlinkage void ret_from_kernel_thread(void);
  */
 int copy_thread(struct task_struct *p, const struct kernel_clone_args *args)
 {
+	static bool once;
 	unsigned long clone_flags = args->flags;
 	unsigned long usp = args->stack;
 	unsigned long tls = args->tls;
 	struct pt_regs *childregs;
-	struct thread_struct *thread = &p->thread;
 
 	/* Get pointer to child's pt_regs at top of kernel stack */
 	childregs = task_pt_regs(p);
+
+	if (!once) {
+		once = true;
+		pr_info("M65832: offsets task.thread=%zu start_pc=%zu arg0=%zu arg1=%zu started=%zu\n",
+			offsetof(struct task_struct, thread),
+			offsetof(struct thread_struct, start_pc),
+			offsetof(struct thread_struct, start_arg0),
+			offsetof(struct thread_struct, start_arg1),
+			offsetof(struct thread_struct, started));
+	}
 
 	/* Clear the register frame */
 	memset(childregs, 0, sizeof(*childregs));
@@ -140,7 +201,15 @@ int copy_thread(struct task_struct *p, const struct kernel_clone_args *args)
 		childregs->r1 = (unsigned long)args->fn;
 		childregs->pc = (unsigned long)ret_from_kernel_thread;
 		childregs->status = SR_KERNEL_MODE;
+
 		p->thread.ksp = (unsigned long)childregs;
+		/* Keep reserved context registers coherent for first switch-in. */
+		p->thread.r24 = (unsigned long)task_thread_info(p);
+		p->thread.r25 = (unsigned long)p;
+		p->thread.start_pc = (unsigned long)ret_from_kernel_thread;
+		p->thread.start_arg0 = (unsigned long)args->fn_arg;
+		p->thread.start_arg1 = (unsigned long)args->fn;
+		p->thread.started = 0;
 		return 0;
 	}
 
@@ -159,8 +228,14 @@ int copy_thread(struct task_struct *p, const struct kernel_clone_args *args)
 		/* TODO: Set TLS pointer - arch specific */
 		;
 
-	/* Save kernel stack pointer for context switch */
 	p->thread.ksp = (unsigned long)childregs;
+	/* Keep reserved context registers coherent for first switch-in. */
+	p->thread.r24 = (unsigned long)task_thread_info(p);
+	p->thread.r25 = (unsigned long)p;
+	p->thread.start_pc = (unsigned long)ret_from_fork;
+	p->thread.start_arg0 = 0;
+	p->thread.start_arg1 = 0;
+	p->thread.started = 0;
 
 	return 0;
 }
@@ -189,24 +264,4 @@ void flush_thread(void)
 #endif
 }
 
-/*
- * Low-level context switch
- * Saves callee-saved registers of 'prev' and restores 'next'
- */
-/*
- * Low-level context switch.
- *
- * The actual register save/restore is done in __switch_to_asm (entry.S).
- * This C function updates the current task pointer and returns prev.
- *
- * TODO: The assembly-level ksp switch is in entry.S's switch_to macro.
- * For initial bring-up, we do a simplified version here.
- */
-struct task_struct *__switch_to(struct task_struct *prev,
-				struct task_struct *next)
-{
-	/* Update current task pointer */
-	m65832_current_task = next;
-
-	return prev;
-}
+/* __switch_to is implemented in arch/m65832/kernel/entry.S */

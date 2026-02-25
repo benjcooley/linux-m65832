@@ -180,11 +180,15 @@
 #define TIMER_CMP			0x04
 #define TIMER_COUNT			0x08
 
-/* Timer Control bits */
-#define TIMER_CTRL_EN			(1 << 0)	/* Enable */
-#define TIMER_CTRL_IE			(1 << 1)	/* Interrupt enable */
-#define TIMER_CTRL_IF			(1 << 2)	/* Interrupt flag (W1C) */
-#define TIMER_CTRL_PERIODIC		(1 << 3)	/* Periodic mode */
+/* Timer Control bits — must match emulator (m65832emu.h TIMER_* defines) */
+#define TIMER_CTRL_EN			(1 << 0)	/* Enable (TIMER_ENABLE) */
+#define TIMER_CTRL_PERIODIC		(1 << 1)	/* Auto-reset/periodic (TIMER_AUTORESET) */
+#define TIMER_CTRL_IE			(1 << 2)	/* Interrupt enable (TIMER_IRQ_ENABLE) */
+#define TIMER_CTRL_IF			(1 << 3)	/* Interrupt flag clear W1C (TIMER_IRQ_CLEAR) */
+#define TIMER_CTRL_IP			(1 << 7)	/* Interrupt pending read-only (TIMER_IRQ_PENDING) */
+
+/* Hardware IRQ number for the CPU internal timer */
+#define M65832_TIMER_HW_IRQ		5
 
 /*
  * Default clock frequencies

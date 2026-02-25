@@ -265,44 +265,45 @@ ENTRY(setup_initial_pgtables)
 	STA (R9)
 
 	/*
-	 * PGD[512] = kernel_pte0 | Present | Writable
-	 * Kernel map: virtual 0x80000000-0x803FFFFF -> physical PHYS_OFFSET
+	 * Kernel mapping: PGD[512..527] for 64MB
+	 * Maps virtual 0x80000000-0x83FFFFFF -> physical PHYS_OFFSET
+	 * 16 PGD entries x 4MB each = 64MB
 	 */
 	LDA #init_pg_dir
 	VIRT_TO_PHYS
 	CLC
-	ADC #(512 * 8)
-	STA R9
-	LDA #kernel_pte
+	ADC #(512 * 8)		/* &PGD[512] */
+	STA R6			/* R6 = current PGD entry address */
+	LDA #kernel_pte_area
 	VIRT_TO_PHYS
+	STA R7			/* R7 = current PTE table address */
+	LDA #16
+	STA R8			/* R8 = loop counter */
+3:
+	/* Set PGD entry: PTE table address | Present | Writable */
+	LDA R7
 	ORA #3
-	STA (R9)
-	LDA R9
+	STA (R6)		/* PGD low 32 bits */
+	LDA R6
 	CLC
 	ADC #4
 	STA R9
 	LDA #0
-	STA (R9)
-
-	/*
-	 * PGD[513] = kernel_pte1 | Present | Writable
-	 * Kernel map: virtual 0x80400000-0x807FFFFF -> physical PHYS_OFFSET+0x400000
-	 */
-	LDA #init_pg_dir
-	VIRT_TO_PHYS
+	STA (R9)		/* PGD high 32 bits = 0 */
+	/* Advance PGD pointer */
+	LDA R6
 	CLC
-	ADC #(513 * 8)
-	STA R9
-	LDA #kernel_pte1
-	VIRT_TO_PHYS
-	ORA #3
-	STA (R9)
-	LDA R9
+	ADC #8
+	STA R6
+	/* Advance PTE table pointer */
+	LDA R7
 	CLC
-	ADC #4
-	STA R9
-	LDA #0
-	STA (R9)
+	ADC #8192
+	STA R7
+	/* Loop */
+	DEC R8
+	LDA R8
+	BNE 3b
 
 	/*
 	 * PGD[64] = periph_pte | Present | Writable
@@ -359,21 +360,43 @@ ENTRY(setup_initial_pgtables)
 	JSR (R5)
 
 	/*
-	 * Fill kernel_pte: 1024 entries mapping 4MB at PHYS_OFFSET.
-	 * PTE[i] = (PHYS_OFFSET + i * 0x1000) | Present | Writable
+	 * Fill all 16 kernel PTE tables: maps 64MB at PHYS_OFFSET.
+	 * PTE[i] = (PHYS_OFFSET + table*4MB + i * 0x1000) | Present | Writable
 	 */
-	LDA #kernel_pte
-	VIRT_TO_PHYS
-	STA R0
-	LDA #PHYS_OFFSET
-	ORA #3
-	STA R2
-	LDA #1024
-	STA R3
 	LDA #fill_pte_table
 	VIRT_TO_PHYS
-	STA R5
-	JSR (R5)
+	STA R5			/* R5 = fill_pte_table (physical) */
+
+	LDA #kernel_pte_area
+	VIRT_TO_PHYS
+	STA R6			/* R6 = current PTE table */
+	LDA #PHYS_OFFSET
+	STA R7			/* R7 = current physical base */
+	LDA #16
+	STA R8			/* R8 = loop counter */
+4:
+	LDA R6
+	STA R0			/* R0 = PTE table base */
+	LDA R7
+	ORA #3
+	STA R2			/* R2 = phys base | flags */
+	LDA #1024
+	STA R3			/* R3 = entry count */
+	JSR (R5)		/* fill_pte_table */
+	/* Advance to next PTE table */
+	LDA R6
+	CLC
+	ADC #8192
+	STA R6
+	/* Advance physical base by 4MB */
+	LDA R7
+	CLC
+	ADC #0x400000
+	STA R7
+	/* Loop */
+	DEC R8
+	LDA R8
+	BNE 4b
 
 	/*
 	 * Fill periph_pte: 1024 entries mapping peripherals at 0x10000000.
@@ -387,28 +410,6 @@ ENTRY(setup_initial_pgtables)
 	STA R2
 	LDA #1024
 	STA R3
-	LDA #fill_pte_table
-	VIRT_TO_PHYS
-	STA R5
-	JSR (R5)
-
-	/*
-	 * Fill kernel_pte1: 1024 entries mapping next 4MB.
-	 * PTE[i] = (PHYS_OFFSET + 0x400000 + i * 0x1000) | Present | Writable
-	 */
-	LDA #kernel_pte1
-	VIRT_TO_PHYS
-	STA R0
-	LDA #PHYS_OFFSET
-	CLC
-	ADC #0x400000		/* 4MB offset for second PTE table */
-	ORA #3
-	STA R2
-	LDA #1024
-	STA R3
-	LDA #fill_pte_table
-	VIRT_TO_PHYS
-	STA R5
 	JSR (R5)
 
 	/*
@@ -475,6 +476,7 @@ boot_info_ptr:
  */
 	.section ".bss", "aw"
 	.align 13			/* 8KB aligned for 64-bit PGD */
+	.globl init_pg_dir
 init_pg_dir:
 	.space	8192			/* 1024 x 8-byte PGD entries */
 
@@ -484,11 +486,8 @@ identity_pte:
 identity_pte1:
 	.space	8192			/* 1024 x 8-byte PTE: identity map 4-8MB */
 
-kernel_pte:
-	.space	8192			/* 1024 x 8-byte PTE: kernel map 0-4MB */
-
-kernel_pte1:
-	.space	8192			/* 1024 x 8-byte PTE: kernel map 4-8MB */
+kernel_pte_area:
+	.space	8192 * 16		/* 16 x 1024 PTE tables: kernel map 64MB */
 
 periph_pte:
 	.space	8192			/* 1024 x 8-byte PTE: peripheral identity map */

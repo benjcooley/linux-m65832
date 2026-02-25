@@ -387,6 +387,16 @@ static int __init irq_sysfs_init(void)
 	struct irq_desc *desc;
 	int irq;
 
+#ifdef CONFIG_M65832
+	/*
+	 * HACK(m65832-boot): irq sysfs kobject registration currently triggers
+	 * unstable kernfs/kobject behavior during postcore initcalls.
+	 * Skip until kobject/idr/runtime state is stable on this architecture.
+	 */
+	pr_warn_once("M65832: skipping irq_sysfs_init\n");
+	return 0;
+#endif
+
 	/* Prevent concurrent irq alloc/free */
 	guard(mutex)(&sparse_irq_lock);
 	irq_kobj_base = kobject_create_and_add("irq", kernel_kobj);

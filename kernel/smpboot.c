@@ -180,6 +180,10 @@ __smpboot_create_thread(struct smp_hotplug_thread *ht, unsigned int cpu)
 	tsk = kthread_create_on_cpu(smpboot_thread_fn, td, cpu,
 				    ht->thread_comm);
 	if (IS_ERR(tsk)) {
+#ifdef CONFIG_M65832
+		pr_err("M65832: kthread_create_on_cpu(%s, cpu=%u) failed: %ld\n",
+		       ht->thread_comm, cpu, PTR_ERR(tsk));
+#endif
 		kfree(td);
 		return PTR_ERR(tsk);
 	}

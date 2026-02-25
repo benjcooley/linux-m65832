@@ -10,6 +10,12 @@ obj-$(CONFIG_VT)			+= vt_ioctl.o vc_screen.o \
 obj-$(CONFIG_CONSOLE_TRANSLATIONS)	+= consolemap.o consolemap_deftbl.o \
 					   ucs.o
 
+ifeq ($(CONFIG_M65832),y)
+# HACK(m65832-boot): narrow workaround for early fault in console_init path.
+# Keep VT semantics intact while avoiding suspected backend miscompile in vt.o.
+CFLAGS_vt.o += -O0
+endif
+
 # Files generated that shall be removed upon make clean
 clean-files :=	consolemap_deftbl.c defkeymap.c \
 		ucs_width_table.h ucs_recompose_table.h ucs_fallback_table.h

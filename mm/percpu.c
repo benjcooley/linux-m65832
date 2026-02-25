@@ -1348,7 +1348,7 @@ static struct pcpu_chunk * __init pcpu_alloc_first_chunk(unsigned long tmp_addr,
 	struct pcpu_chunk *chunk;
 	unsigned long aligned_addr;
 	int start_offset, offset_bits, region_size, region_bits;
-	size_t alloc_size;
+	volatile size_t alloc_size;
 
 	/* region calculations */
 	aligned_addr = tmp_addr & PAGE_MASK;
@@ -1369,7 +1369,6 @@ static struct pcpu_chunk * __init pcpu_alloc_first_chunk(unsigned long tmp_addr,
 
 	chunk->nr_pages = region_size >> PAGE_SHIFT;
 	region_bits = pcpu_chunk_map_bits(chunk);
-
 	alloc_size = BITS_TO_LONGS(region_bits) * sizeof(chunk->alloc_map[0]);
 	chunk->alloc_map = memblock_alloc_or_panic(alloc_size, SMP_CACHE_BYTES);
 

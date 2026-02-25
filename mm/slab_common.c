@@ -1025,9 +1025,15 @@ gfp_t kmalloc_fix_flags(gfp_t flags)
 	gfp_t invalid_mask = flags & GFP_SLAB_BUG_MASK;
 
 	flags &= ~GFP_SLAB_BUG_MASK;
-	pr_warn("Unexpected gfp: %#x (%pGg). Fixing up to gfp: %#x (%pGg). Fix your code!\n",
+	/*
+	 * HACK(m65832-boot): Changed from pr_warn + dump_stack() to
+	 * pr_warn_once.  dump_stack() is prohibitively expensive on the
+	 * M65832 emulator (symbol lookup walks the entire kallsyms table).
+	 * TODO: Revert to original WARN + dump_stack when the compiler
+	 * generates faster code or kallsyms is optimized.
+	 */
+	pr_warn_once("Unexpected gfp: %#x (%pGg). Fixing up to gfp: %#x (%pGg). Fix your code!\n",
 			invalid_mask, &invalid_mask, flags, &flags);
-	dump_stack();
 
 	return flags;
 }

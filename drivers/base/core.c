@@ -2563,9 +2563,15 @@ static void device_release(struct kobject *kobj)
 		dev->type->release(dev);
 	else if (dev->class && dev->class->dev_release)
 		dev->class->dev_release(dev);
-	else
+	else {
+#ifdef CONFIG_M65832
+		pr_err_once("M65832: Device '%s' missing release() callback\n",
+			    dev_name(dev));
+#else
 		WARN(1, KERN_ERR "Device '%s' does not have a release() function, it is broken and must be fixed. See Documentation/core-api/kobject.rst.\n",
 			dev_name(dev));
+#endif
+	}
 	kfree(p);
 }
 

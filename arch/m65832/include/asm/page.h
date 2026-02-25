@@ -17,6 +17,9 @@
 /* Physical memory offset */
 #define PHYS_OFFSET	CONFIG_PHYS_OFFSET
 
+/* PFN offset for FLATMEM — memory starts at PHYS_OFFSET, not 0 */
+#define ARCH_PFN_OFFSET	((unsigned long)(PHYS_OFFSET >> PAGE_SHIFT))
+
 #ifndef __ASSEMBLY__
 
 #include <asm/setup.h>
@@ -70,11 +73,8 @@ static inline unsigned long virt_to_pfn(const void *kaddr)
 	return __pa(kaddr) >> PAGE_SHIFT;
 }
 
-#define virt_to_page(addr) \
-	(mem_map + (((unsigned long)(addr) - PAGE_OFFSET) >> PAGE_SHIFT))
-
-#define page_to_virt(page) \
-	((void *)(((page) - mem_map) << PAGE_SHIFT) + PAGE_OFFSET)
+#define virt_to_page(addr)	pfn_to_page(virt_to_pfn(addr))
+#define page_to_virt(page)	pfn_to_kaddr(page_to_pfn(page))
 
 #define pfn_to_kaddr(pfn)	__va((pfn) << PAGE_SHIFT)
 

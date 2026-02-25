@@ -12,11 +12,12 @@
 
 /*
  * Stack frame structure for M65832
- * R29 is frame pointer, R30 is link register
+ * B register is the frame pointer (set via PHB32; TSPB prologue).
+ * Return addresses are on the stack (JSR/RTS), NOT in R30.
  */
 struct stackframe {
-	unsigned long fp;	/* R29 - frame pointer */
-	unsigned long ra;	/* R30 - return address */
+	unsigned long fp;	/* B - frame pointer */
+	unsigned long ra;	/* return address (from stack) */
 };
 
 extern void dump_stack(void);

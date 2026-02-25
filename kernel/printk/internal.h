@@ -191,10 +191,24 @@ extern bool console_irqwork_blocked;
  * Identify which console flushing methods should be used in the context of
  * the caller.
  */
+/*
+ * HACK(m65832-boot): Simplified to avoid a codegen bug in the M65832
+ * compiler.  The original version has a large switch + conditionals
+ * that generates incorrect branch targets when inlined.
+ * TODO: Revert to original once the compiler bug is fixed.
+ */
 static inline void printk_get_console_flush_type(struct console_flush_type *ft)
 {
 	memset(ft, 0, sizeof(*ft));
 
+#ifdef CONFIG_M65832
+	/*
+	 * M65832: Always flush legacy consoles directly.  We only have
+	 * the raw UART boot console; no nbcon, no kthreads yet.
+	 */
+	if (have_legacy_console || have_boot_console)
+		ft->legacy_direct = true;
+#else
 	switch (nbcon_get_default_prio()) {
 	case NBCON_PRIO_NORMAL:
 		if (have_nbcon_console && !have_boot_console) {
@@ -259,6 +273,7 @@ static inline void printk_get_console_flush_type(struct console_flush_type *ft)
 		WARN_ON_ONCE(1);
 		break;
 	}
+#endif /* !CONFIG_M65832 */
 }
 
 extern struct printk_buffers printk_shared_pbufs;

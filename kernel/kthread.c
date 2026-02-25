@@ -81,7 +81,12 @@ enum KTHREAD_BITS {
 
 static inline struct kthread *to_kthread(struct task_struct *k)
 {
+#ifdef CONFIG_M65832
+	if (unlikely(!(k->flags & PF_KTHREAD)))
+		return k->worker_private;
+#else
 	WARN_ON(!(k->flags & PF_KTHREAD));
+#endif
 	return k->worker_private;
 }
 
@@ -380,7 +385,12 @@ static void kthread_affine_node(void)
 	struct kthread *kthread = to_kthread(current);
 	cpumask_var_t affinity;
 
+#ifdef CONFIG_M65832
+	if (kthread_is_per_cpu(current))
+		pr_warn_once("M65832: kthread_affine_node saw per-cpu kthread\n");
+#else
 	WARN_ON_ONCE(kthread_is_per_cpu(current));
+#endif
 
 	if (kthread->node == NUMA_NO_NODE) {
 		housekeeping_affine(current, HK_TYPE_KTHREAD);
@@ -594,7 +604,11 @@ EXPORT_SYMBOL(kthread_create_on_node);
 static void __kthread_bind_mask(struct task_struct *p, const struct cpumask *mask, unsigned int state)
 {
 	if (!wait_task_inactive(p, state)) {
+#ifdef CONFIG_M65832
+		pr_warn_once("M65832: __kthread_bind_mask task not inactive\n");
+#else
 		WARN_ON(1);
+#endif
 		return;
 	}
 
@@ -667,7 +681,12 @@ void kthread_set_per_cpu(struct task_struct *k, int cpu)
 	if (!kthread)
 		return;
 
+#ifdef CONFIG_M65832
+	if (!(k->flags & PF_NO_SETAFFINITY))
+		pr_warn_once("M65832: kthread_set_per_cpu missing PF_NO_SETAFFINITY\n");
+#else
 	WARN_ON_ONCE(!(k->flags & PF_NO_SETAFFINITY));
+#endif
 
 	if (cpu < 0) {
 		clear_bit(KTHREAD_IS_PER_CPU, &kthread->flags);

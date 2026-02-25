@@ -422,9 +422,17 @@ static void rwsem_mark_wake(struct rw_semaphore *sem,
 	 * the wakeup(s) to perform.
 	 */
 	waiter = rwsem_first_waiter(sem);
+#ifdef CONFIG_M65832
+	if (unlikely(!waiter))
+		return;
+#endif
 
 	if (waiter->type == RWSEM_WAITING_FOR_WRITE) {
 		if (wake_type == RWSEM_WAKE_ANY) {
+#ifdef CONFIG_M65832
+			if (unlikely(!waiter->task))
+				return;
+#endif
 			/*
 			 * Mark writer at the front of the queue for wakeup.
 			 * Until the task is actually later awoken later by

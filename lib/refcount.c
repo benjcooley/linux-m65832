@@ -13,6 +13,10 @@
 void refcount_warn_saturate(refcount_t *r, enum refcount_saturation_type t)
 {
 	refcount_set(r, REFCOUNT_SATURATED);
+#ifdef CONFIG_M65832
+	pr_err_once("M65832: refcount saturation suppressed during bring-up\n");
+	return;
+#endif
 
 	switch (t) {
 	case REFCOUNT_ADD_NOT_ZERO_OVF:

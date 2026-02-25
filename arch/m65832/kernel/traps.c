@@ -20,6 +20,9 @@
 /* show_regs is defined in process.c */
 extern void show_regs(struct pt_regs *regs);
 
+/* Spinlock for die() serialization */
+static DEFINE_SPINLOCK(die_lock);
+
 /*
  * Generic exception handler
  */

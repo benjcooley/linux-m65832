@@ -24,6 +24,12 @@
  */
 #include "sched.h"
 
+#if defined(CONFIG_M65832) && defined(__clang__)
+#define M65832_CPUPRI_OPTNONE __attribute__((optnone))
+#else
+#define M65832_CPUPRI_OPTNONE
+#endif
+
 /*
  * p->rt_priority   p->prio   newpri   cpupri
  *
@@ -208,7 +214,7 @@ int cpupri_find_fitness(struct cpupri *cp, struct task_struct *p,
  *
  * Returns: (void)
  */
-void cpupri_set(struct cpupri *cp, int cpu, int newpri)
+void M65832_CPUPRI_OPTNONE cpupri_set(struct cpupri *cp, int cpu, int newpri)
 {
 	int *currpri = &cp->cpu_to_pri[cpu];
 	int oldpri = *currpri;

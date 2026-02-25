@@ -1151,9 +1151,20 @@ static struct smp_hotplug_thread timer_thread = {
 
 static __init int spawn_ksoftirqd(void)
 {
+	int ret;
+
 	cpuhp_setup_state_nocalls(CPUHP_SOFTIRQ_DEAD, "softirq:dead", NULL,
 				  takeover_tasklets);
-	BUG_ON(smpboot_register_percpu_thread(&softirq_threads));
+	ret = smpboot_register_percpu_thread(&softirq_threads);
+#ifdef CONFIG_M65832
+	if (ret) {
+		pr_err("M65832: smpboot_register_percpu_thread(softirq) failed: %d\n",
+		       ret);
+		return 0;
+	}
+#else
+	BUG_ON(ret);
+#endif
 #ifdef CONFIG_IRQ_FORCED_THREADING
 	if (force_irqthreads())
 		BUG_ON(smpboot_register_percpu_thread(&timer_thread));

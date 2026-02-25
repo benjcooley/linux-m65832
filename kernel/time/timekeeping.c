@@ -256,7 +256,14 @@ static void tk_set_wall_to_mono(struct timekeeper *tk, struct timespec64 wtm)
 	 */
 	set_normalized_timespec64(&tmp, -tk->wall_to_monotonic.tv_sec,
 					-tk->wall_to_monotonic.tv_nsec);
-	WARN_ON_ONCE(tk->offs_real != timespec64_to_ktime(tmp));
+	/*
+	 * HACK(m65832-boot): Replaced WARN_ON_ONCE with pr_warn_once.
+	 * The full WARN generates a dump_stack() that takes billions of
+	 * emulated cycles for symbol resolution.
+	 * TODO: Revert to WARN_ON_ONCE once dump_stack is fast enough.
+	 */
+	if (unlikely(tk->offs_real != timespec64_to_ktime(tmp)))
+		pr_warn_once("timekeeping: offs_real/wall_to_mono mismatch\n");
 	tk->wall_to_monotonic = wtm;
 	set_normalized_timespec64(&tmp, -wtm.tv_sec, -wtm.tv_nsec);
 	/* Paired with READ_ONCE() in ktime_mono_to_any() */

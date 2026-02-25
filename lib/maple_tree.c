@@ -663,6 +663,10 @@ mas_safe_pivot(const struct ma_state *mas, unsigned long *pivots,
 static inline unsigned long
 mas_safe_min(struct ma_state *mas, unsigned long *pivots, unsigned char offset)
 {
+#ifdef CONFIG_M65832
+	if (unlikely(!pivots))
+		return mas->min;
+#endif
 	if (likely(offset))
 		return pivots[offset - 1] + 1;
 

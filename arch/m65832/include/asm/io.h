@@ -200,9 +200,17 @@ static inline void memset_io(volatile void __iomem *dest, int c, size_t count)
 }
 
 /*
- * I/O remapping - provided by generic ioremap (GENERIC_IOREMAP).
- * asm-generic/io.h provides ioremap/iounmap declarations.
+ * I/O remapping - arch-specific ioremap in mm/ioremap.c.
+ * Define the guard macros so asm-generic/io.h does not provide
+ * its own ioremap/iounmap (which goes through generic_ioremap_prot
+ * and crashes because init_mm.pgd != the live page table).
  */
+#define ioremap ioremap
+extern void __iomem *ioremap(phys_addr_t phys_addr, size_t size);
+
+#define iounmap iounmap
+extern void iounmap(volatile void __iomem *addr);
+
 #define ioremap_wc		ioremap
 #define ioremap_wt		ioremap
 #define ioremap_np		ioremap

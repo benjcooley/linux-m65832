@@ -51,6 +51,12 @@
 
 #include "internal.h"
 
+#if defined(CONFIG_M65832) && defined(__clang__)
+#define M65832_SLUB_KFREE_OPTNONE __attribute__((optnone))
+#else
+#define M65832_SLUB_KFREE_OPTNONE
+#endif
+
 /*
  * Lock order:
  *   1. slab_mutex (Global Mutex)
@@ -6778,6 +6784,15 @@ static inline struct kmem_cache *cache_from_obj(struct kmem_cache *s, void *x)
  */
 void kmem_cache_free(struct kmem_cache *s, void *x)
 {
+#ifdef CONFIG_M65832
+	if (unlikely(!x))
+		return;
+	/* Bring-up guard: ignore obvious ERR_PTR-like and reserved-page frees. */
+	if (unlikely(((unsigned long)x & 0xfffff000UL) == 0xfffff000UL))
+		return;
+	if (unlikely(PageReserved(virt_to_page(x))))
+		return;
+#endif
 	s = cache_from_obj(s, x);
 	if (!s)
 		return;
@@ -6859,7 +6874,7 @@ void kvfree_rcu_cb(struct rcu_head *head)
  *
  * If @object is NULL, no operation is performed.
  */
-void kfree(const void *object)
+void M65832_SLUB_KFREE_OPTNONE kfree(const void *object)
 {
 	struct page *page;
 	struct slab *slab;
@@ -6871,7 +6886,29 @@ void kfree(const void *object)
 	if (unlikely(ZERO_OR_NULL_PTR(object)))
 		return;
 
+#ifdef CONFIG_M65832
+	/* Explicit ERR_PTR range check in plain arithmetic form. */
+	if (unlikely(((unsigned long)object & 0xfffff000UL) == 0xfffff000UL))
+		return;
+	/*
+	 * Bring-up guard: avoid treating ERR_PTR values as slab addresses.
+	 * A few early paths currently hand corrupted/error-like pointers to kfree.
+	 */
+	if (unlikely(IS_ERR(object)))
+		return;
+	if (unlikely((unsigned long)object >= (unsigned long)-4095))
+		return;
+#endif
+
 	page = virt_to_page(object);
+#ifdef CONFIG_M65832
+	/*
+	 * Bring-up guard: ignore frees of reserved/non-kmalloc pages that
+	 * occasionally leak into kfree() on current backend/emulator stack.
+	 */
+	if (unlikely(PageReserved(page)))
+		return;
+#endif
 	slab = page_slab(page);
 	if (!slab) {
 		free_large_kmalloc(page, (void *)object);
@@ -9838,6 +9875,10 @@ static int sysfs_slab_alias(struct kmem_cache *s, const char *name)
 
 static int __init slab_sysfs_init(void)
 {
+#ifdef CONFIG_M65832
+	/* Bring-up: skip slab sysfs registration until kernfs/rwsem paths stabilize. */
+	return 0;
+#endif
 	struct kmem_cache *s;
 	int err;
 

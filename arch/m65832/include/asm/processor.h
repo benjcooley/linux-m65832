@@ -16,8 +16,14 @@
 #define TASK_SIZE_MAX		TASK_SIZE
 #define TASK_UNMAPPED_BASE	(TASK_SIZE / 3)
 
-/* Kernel stack size */
-#define THREAD_SIZE_ORDER	1
+/*
+ * Kernel stack size.
+ * HACK(m65832-boot): Increased from order 1 (8KB) to order 4 (64KB).
+ * The M65832 compiler spills many callee-saved registers on each call
+ * frame, consuming stack faster than typical 32-bit targets.
+ * TODO: Reduce once the compiler's register allocator improves.
+ */
+#define THREAD_SIZE_ORDER	4
 #define THREAD_SIZE		(PAGE_SIZE << THREAD_SIZE_ORDER)
 
 #ifndef __ASSEMBLY__
@@ -39,9 +45,19 @@ struct thread_struct {
 
 	/* Saved kernel-mode callee-saved registers during context switch */
 	unsigned long r16, r17, r18, r19, r20, r21, r22, r23;
+	unsigned long r24, r25;
 
 	/* B register - frame pointer (callee-saved) */
 	unsigned long b;
+
+	/*
+	 * First-run trampoline context.
+	 * New tasks start with a direct jump instead of RTS from switch_to.
+	 */
+	unsigned long start_pc;
+	unsigned long start_arg0;
+	unsigned long start_arg1;
+	unsigned long started;
 
 	/* User-mode FPU state (if FPU enabled) */
 #ifdef CONFIG_M65832_FPU
@@ -54,7 +70,7 @@ struct thread_struct {
 	unsigned long fault_code;
 };
 
-#define INIT_THREAD { }
+#define INIT_THREAD { .started = 1 }
 
 /*
  * Do necessary setup to start up a newly executed thread.

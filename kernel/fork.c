@@ -1963,7 +1963,13 @@ static bool need_futex_hash_allocate_default(u64 clone_flags)
  * parts of the process environment (as per the clone
  * flags). The actual kick-off is left to the caller.
  */
-__latent_entropy struct task_struct *copy_process(
+#if defined(CONFIG_M65832) && defined(__clang__)
+#define M65832_COPY_PROCESS_OPTNONE __attribute__((optnone))
+#else
+#define M65832_COPY_PROCESS_OPTNONE
+#endif
+
+__latent_entropy M65832_COPY_PROCESS_OPTNONE struct task_struct *copy_process(
 					struct pid *pid,
 					int trace,
 					int node,
@@ -2038,7 +2044,6 @@ __latent_entropy struct task_struct *copy_process(
 	 */
 	sigemptyset(&delayed.signal);
 	INIT_HLIST_NODE(&delayed.node);
-
 	spin_lock_irq(&current->sighand->siglock);
 	if (!(clone_flags & CLONE_THREAD))
 		hlist_add_head(&delayed.node, &current->signal->multiprocess);
@@ -2607,7 +2612,13 @@ struct task_struct *create_io_thread(int (*fn)(void *), void *arg, int node)
  *
  * args->exit_signal is expected to be checked for sanity by the caller.
  */
-pid_t kernel_clone(struct kernel_clone_args *args)
+#if defined(CONFIG_M65832) && defined(__clang__)
+#define M65832_CLONE_OPTNONE __attribute__((optnone))
+#else
+#define M65832_CLONE_OPTNONE
+#endif
+
+pid_t M65832_CLONE_OPTNONE kernel_clone(struct kernel_clone_args *args)
 {
 	u64 clone_flags = args->flags;
 	struct completion vfork;
@@ -2715,8 +2726,15 @@ pid_t kernel_thread(int (*fn)(void *), void *arg, const char *name,
 /*
  * Create a user mode thread.
  */
-pid_t user_mode_thread(int (*fn)(void *), void *arg, unsigned long flags)
+#if defined(CONFIG_M65832) && defined(__clang__)
+#define M65832_FORK_OPTNONE __attribute__((optnone))
+#else
+#define M65832_FORK_OPTNONE
+#endif
+
+pid_t M65832_FORK_OPTNONE user_mode_thread(int (*fn)(void *), void *arg, unsigned long flags)
 {
+	pr_info("M65832: user_mode_thread enter\n");
 	struct kernel_clone_args args = {
 		.flags		= ((flags | CLONE_VM | CLONE_UNTRACED) & ~CSIGNAL),
 		.exit_signal	= (flags & CSIGNAL),
@@ -2724,6 +2742,7 @@ pid_t user_mode_thread(int (*fn)(void *), void *arg, unsigned long flags)
 		.fn_arg		= arg,
 	};
 
+	pr_info("M65832: user_mode_thread before kernel_clone\n");
 	return kernel_clone(&args);
 }
 

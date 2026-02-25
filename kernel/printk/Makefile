@@ -9,3 +9,9 @@ printk_support-y	             := printk_ringbuffer.o
 printk_support-$(CONFIG_SYSCTL)	     += sysctl.o
 
 obj-$(CONFIG_PRINTK_RINGBUFFER_KUNIT_TEST) += printk_ringbuffer_kunit_test.o
+
+ifeq ($(CONFIG_M65832),y)
+# HACK(m65832-boot): suspected backend miscompile in printk core control flow.
+# Keep full printk functionality, but compile this unit with minimal optimization.
+CFLAGS_printk.o += -O0
+endif

@@ -415,9 +415,17 @@ static noinline int __init devtmpfs_setup(void *p)
 	int err;
 
 	err = ksys_unshare(CLONE_NEWNS);
+#ifdef CONFIG_M65832
+	if (err)
+		pr_err("M65832: devtmpfs_setup ksys_unshare failed: %d\n", err);
+#endif
 	if (err)
 		goto out;
 	err = init_mount("devtmpfs", "/", "devtmpfs", DEVTMPFS_MFLAGS, NULL);
+#ifdef CONFIG_M65832
+	if (err)
+		pr_err("M65832: devtmpfs_setup init_mount failed: %d\n", err);
+#endif
 	if (err)
 		goto out;
 	init_chdir("/.."); /* will traverse into overmounted root */
@@ -494,6 +502,12 @@ int __init devtmpfs_init(void)
 		pr_err("unable to register devtmpfs type %d\n", err);
 		return err;
 	}
+
+#ifdef CONFIG_M65832
+	/* Bring-up: skip kdevtmpfs worker/mount namespace setup for now. */
+	pr_info("initialized (worker skipped)\n");
+	return 0;
+#endif
 
 	thread = kthread_run(devtmpfsd, &err, "kdevtmpfs");
 	if (!IS_ERR(thread)) {

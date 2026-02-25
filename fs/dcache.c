@@ -814,6 +814,20 @@ static inline bool fast_dput(struct dentry *dentry)
 {
 	int ret;
 
+#ifdef CONFIG_M65832
+	/*
+	 * Avoid lockref lockless decrement path during bring-up; take d_lock
+	 * explicitly so finish_dput() sees the expected locked state.
+	 */
+	spin_lock(&dentry->d_lock);
+	if (WARN_ON_ONCE(dentry->d_lockref.count <= 0)) {
+		spin_unlock(&dentry->d_lock);
+		return true;
+	}
+	dentry->d_lockref.count--;
+	goto locked;
+#endif
+
 	/*
 	 * try to decrement the lockref optimistically.
 	 */

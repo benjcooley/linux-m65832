@@ -94,8 +94,14 @@ static int create_dir(struct kobject *kobj)
 	 */
 	ops = kobj_child_ns_ops(kobj);
 	if (ops) {
+#ifdef CONFIG_M65832
+		if (!kobj_ns_type_is_valid(ops->type) ||
+		    !kobj_ns_type_registered(ops->type))
+			return -EINVAL;
+#else
 		BUG_ON(!kobj_ns_type_is_valid(ops->type));
 		BUG_ON(!kobj_ns_type_registered(ops->type));
+#endif
 
 		sysfs_enable_ns(kobj->sd);
 	}
@@ -636,10 +642,16 @@ EXPORT_SYMBOL(kobject_del);
 struct kobject *kobject_get(struct kobject *kobj)
 {
 	if (kobj) {
-		if (!kobj->state_initialized)
+		if (!kobj->state_initialized) {
+#ifdef CONFIG_M65832
+			pr_warn_once("kobject: '%s' (%p): get on uninitialized object\n",
+				     kobject_name(kobj), kobj);
+#else
 			WARN(1, KERN_WARNING
 				"kobject: '%s' (%p): is not initialized, yet kobject_get() is being called.\n",
 			     kobject_name(kobj), kobj);
+#endif
+		}
 		kref_get(&kobj->kref);
 	}
 	return kobj;
@@ -730,10 +742,16 @@ static void kobject_release(struct kref *kref)
 void kobject_put(struct kobject *kobj)
 {
 	if (kobj) {
-		if (!kobj->state_initialized)
+		if (!kobj->state_initialized) {
+#ifdef CONFIG_M65832
+			pr_warn_once("kobject: '%s' (%p): put on uninitialized object\n",
+				     kobject_name(kobj), kobj);
+#else
 			WARN(1, KERN_WARNING
 				"kobject: '%s' (%p): is not initialized, yet kobject_put() is being called.\n",
 			     kobject_name(kobj), kobj);
+#endif
+		}
 		kref_put(&kobj->kref, kobject_release);
 	}
 }

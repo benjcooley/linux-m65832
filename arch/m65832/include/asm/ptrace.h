@@ -13,27 +13,43 @@
 /*
  * Status register bits (needed by both C and assembly).
  * Use literal hex values so the assembler can parse them directly.
+ *
+ * M65832 P register layout (14 bits):
+ *   Bits 0-7:  C, Z, I, D, X, M, V, N  (65816-identical low byte)
+ *   Bits 8-9:  W0, W1                   (width mode, thermometer encoding)
+ *   Bit  10:   reserved                 (future W2 for 64-bit)
+ *   Bit  11:   S                        (supervisor mode)
+ *   Bit  12:   R                        (register window)
+ *   Bit  13:   K                        (compatibility mode)
+ *
+ * Width mode (W1:W0):  00=emulation, 01=native-16, 11=32-bit
+ * E flag is derived: E = (W==00)
  */
 #define SR_CARRY	0x0001		/* C - Carry flag */
 #define SR_ZERO		0x0002		/* Z - Zero flag */
 #define SR_IRQ_DISABLE	0x0004		/* I - IRQ disable */
 #define SR_DECIMAL	0x0008		/* D - Decimal mode (disabled in Linux) */
-#define SR_INDEX_8	0x0010		/* X0 - Index register width bit 0 */
-#define SR_ACCUM_8	0x0020		/* M0 - Accumulator width bit 0 */
+#define SR_INDEX	0x0010		/* X - Index width (65816 compat) */
+#define SR_ACCUM	0x0020		/* M - Accumulator width (65816 compat) */
 #define SR_OVERFLOW	0x0040		/* V - Overflow flag */
 #define SR_NEGATIVE	0x0080		/* N - Negative flag */
-#define SR_EMULATION	0x0100		/* E - Emulation mode (must be 0) */
-#define SR_INDEX_16	0x0200		/* X1 - Index register width bit 1 */
-#define SR_ACCUM_16	0x0400		/* M1 - Accumulator width bit 1 */
-#define SR_REGWIN	0x0800		/* R - Register window mode */
-#define SR_SUPERVISOR	0x1000		/* S - Supervisor mode */
-#define SR_MMU_ENABLE	0x2000		/* MM - MMU enabled */
+#define SR_W0		0x0100		/* W0 - Width mode bit 0 */
+#define SR_W1		0x0200		/* W1 - Width mode bit 1 */
+#define SR_W_MASK	0x0300		/* W1:W0 mask */
+#define SR_SUPERVISOR	0x0800		/* S - Supervisor mode */
+#define SR_REGWIN	0x1000		/* R - Register window mode */
+#define SR_COMPAT	0x2000		/* K - Compatibility mode */
 
-/* User mode status register value (32-bit mode, user, MMU on) */
-#define SR_USER_MODE	0x2630		/* MMU | M1 | M0 | X1 | X0 */
+/* Width mode values (W1:W0) */
+#define SR_W_EMU	0x0000		/* W=00: 6502 emulation */
+#define SR_W_16		0x0100		/* W=01: 65816 native-16 */
+#define SR_W_32		0x0300		/* W=11: 32-bit native */
 
-/* Kernel mode status register value */
-#define SR_KERNEL_MODE	0x3630		/* S | MMU | M1 | M0 | X1 | X0 */
+/* User mode: 32-bit, register window */
+#define SR_USER_MODE	(SR_W_32 | SR_REGWIN)			/* 0x1300 */
+
+/* Kernel mode: 32-bit, supervisor, register window */
+#define SR_KERNEL_MODE	(SR_W_32 | SR_SUPERVISOR | SR_REGWIN)	/* 0x1B00 */
 
 /*
  * Offsets into pt_regs (in bytes) - needed by both C and assembly

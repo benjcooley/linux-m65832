@@ -147,6 +147,13 @@ KASAN_SANITIZE_kstack_erase.o := n
 KCSAN_SANITIZE_kstack_erase.o := n
 KCOV_INSTRUMENT_kstack_erase.o := n
 
+ifeq ($(CONFIG_M65832),y)
+# Bring-up workaround: stabilize kthread creation/binding paths.
+CFLAGS_kthread.o += -O0
+CFLAGS_sysctl.o += -O0
+CFLAGS_pid.o += -O0
+endif
+
 obj-$(CONFIG_SCF_TORTURE_TEST) += scftorture.o
 
 $(obj)/configs.o: $(obj)/config_data.gz

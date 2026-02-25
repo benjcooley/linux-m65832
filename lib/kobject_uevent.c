@@ -483,6 +483,11 @@ int kobject_uevent_env(struct kobject *kobj, enum kobject_action action,
 	int i = 0;
 	int retval = 0;
 
+#ifdef CONFIG_M65832
+	pr_debug("M65832: kobject uevents suppressed during bring-up\n");
+	return 0;
+#endif
+
 	/*
 	 * Mark "remove" event done regardless of result, for some subsystems
 	 * do not want to re-trigger "remove" event via automatic cleanup.

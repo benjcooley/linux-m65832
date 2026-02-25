@@ -62,7 +62,7 @@ static void raw_uart_write(struct console *con, const char *s, unsigned n)
 static struct console raw_uart_console = {
 	.name	= "rawuart",
 	.write	= raw_uart_write,
-	.flags	= CON_PRINTBUFFER | CON_BOOT | CON_ENABLED,
+	.flags	= CON_PRINTBUFFER | CON_ENABLED,
 	.index	= -1,
 };
 
@@ -138,9 +138,22 @@ static void __init setup_memory(void)
 		mem_start = boot_info.mem_start;
 		mem_size = boot_info.mem_size;
 	} else {
-		/* Default: 64MB starting at 0 */
-		mem_start = 0;
+		/* Default: 64MB starting at PHYS_OFFSET.
+		 * Must not exceed the initial page table coverage set up
+		 * by head.S (16 PTE tables x 4MB = 64MB). */
+		mem_start = PHYS_OFFSET;
 		mem_size = 64 * 1024 * 1024;
+	}
+
+	/*
+	 * Ensure memory starts at or above PHYS_OFFSET.
+	 * The kernel linear map maps physical PHYS_OFFSET to virtual
+	 * PAGE_OFFSET, so physical addresses below PHYS_OFFSET would
+	 * map below PAGE_OFFSET (user space) and be inaccessible.
+	 */
+	if (mem_start < PHYS_OFFSET) {
+		mem_size -= (PHYS_OFFSET - mem_start);
+		mem_start = PHYS_OFFSET;
 	}
 
 	m65832_early_printk("M65832: Memory: %luMB @ 0x%08lx\n",
@@ -162,39 +175,49 @@ static void __init setup_memory(void)
  */
 void __init setup_arch(char **cmdline_p)
 {
-	/* Direct UART write to confirm setup_arch is reached */
-	raw_uart_putc('A');
-
 	/* Register raw UART console so all printk output is visible */
 	register_raw_console();
 
-	/* Confirm console registered */
-	raw_uart_putc('B');
-
 	/* Set up command line */
 	if (boot_info.cmdline[0]) {
-		strscpy(cmd_line, boot_info.cmdline, COMMAND_LINE_SIZE);
+		strscpy(boot_command_line, boot_info.cmdline, COMMAND_LINE_SIZE);
 	} else {
 #ifdef CONFIG_CMDLINE
-		strscpy(cmd_line, CONFIG_CMDLINE, COMMAND_LINE_SIZE);
+		strscpy(boot_command_line, CONFIG_CMDLINE, COMMAND_LINE_SIZE);
 #else
-		cmd_line[0] = '\0';
+		boot_command_line[0] = '\0';
 #endif
 	}
+	strscpy(cmd_line, boot_command_line, COMMAND_LINE_SIZE);
 	*cmdline_p = cmd_line;
+
+	/*
+	 * HACK(m65832-boot): Set preset_lpj so calibrate_delay() skips
+	 * the convergence loop.  The timer interrupt works, but the
+	 * delay-loop calibration takes too long on the emulator.
+	 * TODO: Remove once lpj= cmdline parsing works or native
+	 * calibrate_delay_direct() is implemented.
+	 */
+	{
+		extern unsigned long preset_lpj;
+		if (!preset_lpj)
+			preset_lpj = CONFIG_M65832_TIMER_FREQ / HZ / 10;
+	}
 
 	m65832_early_printk("Command line: %s\n", cmd_line);
 
 	/* Initialize memory management */
 	setup_memory();
 
-	/* Set up initial thread info */
-	/* TODO: init_mm setup */
-
 	/* Parse device tree if present */
 #ifdef CONFIG_OF
-	unflatten_device_tree();
+	if (initial_boot_params) {
+		unflatten_device_tree();
+	}
 #endif
+
+	/* Initialize paging and memory zones */
+	paging_init();
 
 	/* Print CPU info */
 	m65832_early_printk("M65832 CPU @ %lu MHz\n", cpu_clock_freq / 1000000);

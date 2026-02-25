@@ -9,6 +9,11 @@ obj-y += time.o timer.o hrtimer.o sleep_timeout.o
 obj-y += timekeeping.o ntp.o clocksource.o jiffies.o timer_list.o
 obj-y += timeconv.o timecounter.o alarmtimer.o
 
+ifeq ($(CONFIG_M65832),y)
+# HACK(m65832-boot): avoid backend BRK traps in hrtimer hot paths.
+CFLAGS_hrtimer.o += -O0
+endif
+
 ifeq ($(CONFIG_POSIX_TIMERS),y)
  obj-y += posix-timers.o posix-cpu-timers.o posix-clock.o itimer.o
 else

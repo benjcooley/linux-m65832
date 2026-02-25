@@ -12,19 +12,8 @@
 #include <linux/perf_event.h>
 
 #include <asm/ptrace.h>
+#include <asm/traps.h>
 #include <asm/mmu.h>
-
-/*
- * Simple die function for kernel oops
- * TODO: Move to a proper traps.c
- */
-static void die(const char *msg, struct pt_regs *regs, unsigned long err)
-{
-	console_verbose();
-	pr_emerg("%s: %04lx\n", msg, err);
-	show_regs(regs);
-	do_exit(SIGSEGV);
-}
 
 /*
  * Page fault handler
@@ -36,9 +25,22 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long address)
 {
 	struct task_struct *tsk = current;
 	struct mm_struct *mm = tsk->mm;
+
 	struct vm_area_struct *vma;
 	vm_fault_t fault;
 	unsigned int flags = FAULT_FLAG_DEFAULT;
+	static int fault_recursion;
+
+	/*
+	 * Prevent recursive page faults: if we fault inside the fault
+	 * handler (e.g. printk → kallsyms → unmapped page), just halt
+	 * instead of spiralling into a stack overflow.
+	 */
+	if (fault_recursion) {
+		/* Recursive fault in fault handler: stop to preserve state. */
+		asm volatile(".byte 0xDB");  /* STP */
+	}
+	fault_recursion++;
 
 	/*
 	 * If we're in interrupt context or have no user context,
@@ -96,6 +98,7 @@ good_area:
 	}
 
 	mmap_read_unlock(mm);
+	fault_recursion--;
 	return;
 
 bad_area:
@@ -103,10 +106,31 @@ bad_area:
 bad_area_nosemaphore:
 	if (user_mode(regs)) {
 		force_sig_fault(SIGSEGV, SEGV_MAPERR, (void __user *)address);
+		fault_recursion--;
 		return;
 	}
 
 no_context:
+	{
+		/*
+		 * Direct UART for guaranteed output before die() which
+		 * may trigger additional page faults.
+		 */
+		volatile unsigned int *uart_tx = (volatile unsigned int *)0x10006000;
+		volatile unsigned int *uart_st = (volatile unsigned int *)0x10006004;
+		char buf[80];
+		const char *p;
+		int len;
+
+		len = snprintf(buf, sizeof(buf),
+			       "PAGE FAULT: addr=%08lx PC=%08lx\n",
+			       address, regs->pc);
+		for (p = buf; *p; p++) {
+			while (!((*uart_st) & 0x02))
+				;
+			*uart_tx = *p;
+		}
+	}
 	pr_emerg("Unable to handle kernel %s at virtual address %08lx\n",
 		 address < PAGE_SIZE ? "NULL pointer dereference" : "paging request",
 		 address);

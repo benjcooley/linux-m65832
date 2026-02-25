@@ -3,6 +3,7 @@
 #include <linux/bug.h>
 #include <linux/export.h>
 #include <linux/idr.h>
+#include <linux/printk.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/xarray.h>
@@ -38,8 +39,15 @@ int idr_alloc_u32(struct idr *idr, void *ptr, u32 *nextid,
 	unsigned int base = idr->idr_base;
 	unsigned int id = *nextid;
 
+#ifdef CONFIG_M65832
+	if (unlikely(!(idr->idr_rt.xa_flags & ROOT_IS_IDR))) {
+		pr_warn_once("M65832: idr_alloc_u32 fixed missing ROOT_IS_IDR flag\n");
+		idr->idr_rt.xa_flags |= IDR_RT_MARKER;
+	}
+#else
 	if (WARN_ON_ONCE(!(idr->idr_rt.xa_flags & ROOT_IS_IDR)))
 		idr->idr_rt.xa_flags |= IDR_RT_MARKER;
+#endif
 	if (max < base)
 		return -ENOSPC;
 

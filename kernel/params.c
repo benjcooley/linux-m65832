@@ -980,6 +980,10 @@ subsys_initcall(param_sysfs_init);
  */
 static int __init param_sysfs_builtin_init(void)
 {
+#ifdef CONFIG_M65832
+	/* Bring-up: skip built-in module parameter sysfs export. */
+	return 0;
+#endif
 	if (!module_kset)
 		return -ENOMEM;
 

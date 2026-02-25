@@ -18,6 +18,17 @@
  */
 void __delay(unsigned long loops)
 {
+#ifdef CONFIG_M65832
+	static bool once;
+	if (!once && loops) {
+		once = true;
+		pr_info("M65832: __delay caller=%px loops=%lu\n",
+			__builtin_return_address(0), loops);
+	}
+#endif
+	if (!loops)
+		return;
+
 	asm volatile(
 		"1:\n\t"
 		"DEC A\n\t"		/* Decrement counter */

@@ -135,6 +135,11 @@ void pidfs_add_pid(struct pid *pid)
 	pid->attr = NULL;
 	pidfs_ino_nr++;
 
+#ifdef CONFIG_M65832
+	/* Bring-up: skip pidfs rbtree wiring until rb insertion path is stable. */
+	return;
+#endif
+
 	write_seqcount_begin(&pidmap_lock_seq);
 	rb_find_add_rcu(&pid->pidfs_node, &pidfs_ino_tree, pidfs_ino_cmp);
 	write_seqcount_end(&pidmap_lock_seq);
@@ -142,6 +147,10 @@ void pidfs_add_pid(struct pid *pid)
 
 void pidfs_remove_pid(struct pid *pid)
 {
+#ifdef CONFIG_M65832
+	if (RB_EMPTY_NODE(&pid->pidfs_node))
+		return;
+#endif
 	write_seqcount_begin(&pidmap_lock_seq);
 	rb_erase(&pid->pidfs_node, &pidfs_ino_tree);
 	write_seqcount_end(&pidmap_lock_seq);

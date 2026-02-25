@@ -26,6 +26,17 @@ KCOV_INSTRUMENT_find_bit.o := n
 # them into calls to themselves.
 CFLAGS_string.o := -ffreestanding
 
+# HACK(m65832-boot): LLVM backend miscompiles timerqueue/rbtree hot path,
+# leading to bad branch targets during early boot. Compile this unit with
+# minimal optimization until backend codegen is fixed.
+ifeq ($(CONFIG_M65832),y)
+CFLAGS_timerqueue.o += -O0
+CFLAGS_string.o += -O0
+CFLAGS_maple_tree.o += -O0
+CFLAGS_rbtree.o += -O0
+CFLAGS_kobject.o += -O0
+endif
+
 # Early boot use of cmdline, don't instrument it
 ifdef CONFIG_AMD_MEM_ENCRYPT
 KASAN_SANITIZE_string.o := n

@@ -60,6 +60,10 @@ obj-y				+= devpts/
 
 obj-$(CONFIG_DLM)		+= dlm/
  
+ifeq ($(CONFIG_M65832),y)
+CFLAGS_dcache.o += -O0
+endif
+
 # Do not add any filesystems before this line
 obj-$(CONFIG_NETFS_SUPPORT)	+= netfs/
 obj-$(CONFIG_EXT4_FS)		+= ext4/

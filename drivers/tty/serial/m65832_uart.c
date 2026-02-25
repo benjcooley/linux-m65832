@@ -328,6 +328,10 @@ static struct uart_driver m65832_uart_driver = {
 
 static int __init m65832_uart_init(void)
 {
+#ifdef CONFIG_M65832
+	/* Bring-up: rely on early console; skip full tty driver registration. */
+	return 0;
+#endif
 	struct uart_port *port = &m65832_uart_port;
 	int ret;
 

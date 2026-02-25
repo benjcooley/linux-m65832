@@ -37,3 +37,12 @@ obj-y += core.o
 obj-y += fair.o
 obj-y += build_policy.o
 obj-y += build_utility.o
+
+ifeq ($(CONFIG_M65832),y)
+# HACK(m65832-boot): sched_clock_init path appears to trigger backend
+# control-flow corruption in early boot.
+CFLAGS_clock.o += -O0
+# HACK(m65832-boot): cpupri/cpumask atomic bitops in sched_init_smp()
+# hit BRK traps in optimized build_utility.o (cpupri_set path).
+CFLAGS_build_utility.o += -O0
+endif

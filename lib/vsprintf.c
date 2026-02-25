@@ -2639,6 +2639,12 @@ static unsigned char spec_flag(unsigned char c)
 	return (c < sizeof(spec_flag_array)) ? spec_flag_array[c] : 0;
 }
 
+#if defined(CONFIG_M65832) && defined(__clang__)
+#define M65832_OPTNONE __attribute__((optnone))
+#else
+#define M65832_OPTNONE
+#endif
+
 /*
  * Helper function to decode printf style format.
  * Each call decode a token from the format and return the
@@ -2660,7 +2666,7 @@ static unsigned char spec_flag(unsigned char c)
  * @precision: precision of a number
  * @qualifier: qualifier of a number (long, size_t, ...)
  */
-static noinline_for_stack
+static noinline_for_stack M65832_OPTNONE
 struct fmt format_decode(struct fmt fmt, struct printf_spec *spec)
 {
 	const char *start = fmt.str;

@@ -8176,12 +8176,27 @@ static inline void balance_hotplug_wait(void)
 
 #endif /* !CONFIG_HOTPLUG_CPU */
 
-void set_rq_online(struct rq *rq)
+#if defined(CONFIG_M65832) && defined(__clang__)
+#define M65832_RQ_ONOFF_OPTNONE __attribute__((optnone))
+#else
+#define M65832_RQ_ONOFF_OPTNONE
+#endif
+
+void M65832_RQ_ONOFF_OPTNONE set_rq_online(struct rq *rq)
 {
 	if (!rq->online) {
 		const struct sched_class *class;
 
+#ifdef CONFIG_M65832
+		/*
+		 * HACK(m65832-boot): avoid atomic bitops path here; m65832
+		 * backend currently emits BRK in cpumask_{set,clear}_cpu()
+		 * during sched_init_smp() CPU on/offline transitions.
+		 */
+		__cpumask_set_cpu(rq->cpu, rq->rd->online);
+#else
 		cpumask_set_cpu(rq->cpu, rq->rd->online);
+#endif
 		rq->online = 1;
 
 		for_each_class(class) {
@@ -8191,7 +8206,7 @@ void set_rq_online(struct rq *rq)
 	}
 }
 
-void set_rq_offline(struct rq *rq)
+void M65832_RQ_ONOFF_OPTNONE set_rq_offline(struct rq *rq)
 {
 	if (rq->online) {
 		const struct sched_class *class;
@@ -8202,7 +8217,11 @@ void set_rq_offline(struct rq *rq)
 				class->rq_offline(rq);
 		}
 
+#ifdef CONFIG_M65832
+		__cpumask_clear_cpu(rq->cpu, rq->rd->online);
+#else
 		cpumask_clear_cpu(rq->cpu, rq->rd->online);
+#endif
 		rq->online = 0;
 	}
 }

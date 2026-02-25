@@ -1669,9 +1669,10 @@ static void __init alloc_node_mem_map(struct pglist_data *pgdat)
 		      size, pgdat->node_id);
 	pgdat->node_mem_map = map + offset;
 	memmap_boot_pages_add(DIV_ROUND_UP(size, PAGE_SIZE));
-	pr_debug("%s: node %d, pgdat %08lx, node_mem_map %08lx\n",
-		 __func__, pgdat->node_id, (unsigned long)pgdat,
-		 (unsigned long)pgdat->node_mem_map);
+	pr_info("%s: node %d, map %08lx-%08lx, node_mem_map %08lx\n",
+		__func__, pgdat->node_id, (unsigned long)map,
+		(unsigned long)map + size,
+		(unsigned long)pgdat->node_mem_map);
 
 	/* the global mem_map is just set as node 0's */
 	WARN_ON(pgdat != NODE_DATA(0));
@@ -1734,6 +1735,7 @@ static void __init free_area_init_node(int nid)
 			(u64)start_pfn << PAGE_SHIFT,
 			end_pfn ? ((u64)end_pfn << PAGE_SHIFT) - 1 : 0);
 
+		pr_debug("M65832: calculate_node_totalpages\n");
 		calculate_node_totalpages(pgdat, start_pfn, end_pfn);
 	} else {
 		pr_info("Initmem setup node %d as memoryless\n", nid);
@@ -1741,10 +1743,14 @@ static void __init free_area_init_node(int nid)
 		reset_memoryless_node_totalpages(pgdat);
 	}
 
+	pr_debug("M65832: alloc_node_mem_map\n");
 	alloc_node_mem_map(pgdat);
+	pr_debug("M65832: pgdat_set_deferred_range\n");
 	pgdat_set_deferred_range(pgdat);
 
+	pr_debug("M65832: free_area_init_core\n");
 	free_area_init_core(pgdat);
+	pr_debug("M65832: lru_gen_init_pgdat\n");
 	lru_gen_init_pgdat(pgdat);
 }
 
@@ -1921,17 +1927,23 @@ void __init free_area_init(unsigned long *max_zone_pfn)
 			check_for_memory(pgdat);
 		}
 	}
+	pr_debug("M65832: after node init loop\n");
 
 	for_each_node_state(nid, N_MEMORY)
 		sparse_vmemmap_init_nid_late(nid);
+	pr_debug("M65832: after sparse_vmemmap_init_nid_late\n");
 
 	calc_nr_kernel_pages();
+	pr_debug("M65832: after calc_nr_kernel_pages\n");
 	memmap_init();
+	pr_debug("M65832: after memmap_init\n");
 
 	/* disable hash distribution for systems with a single node */
 	fixup_hashdist();
+	pr_debug("M65832: after fixup_hashdist\n");
 
 	set_high_memory();
+	pr_debug("M65832: after set_high_memory\n");
 }
 
 /**
@@ -2372,13 +2384,19 @@ void __init page_alloc_init_late(void)
 #define ADAPT_SCALE_NPAGES	(ADAPT_SCALE_BASE >> PAGE_SHIFT)
 #endif
 
+#if defined(CONFIG_M65832) && defined(__clang__)
+#define M65832_MM_OPTNONE __attribute__((optnone))
+#else
+#define M65832_MM_OPTNONE
+#endif
+
 /*
  * allocate a large system hash table from bootmem
  * - it is assumed that the hash table must contain an exact power-of-2
  *   quantity of entries
  * - limit is the number of hash buckets, not the total allocation size
  */
-void *__init alloc_large_system_hash(const char *tablename,
+void *__init M65832_MM_OPTNONE alloc_large_system_hash(const char *tablename,
 				     unsigned long bucketsize,
 				     unsigned long numentries,
 				     int scale,
@@ -2711,9 +2729,13 @@ void __init mm_core_init(void)
 	 */
 	kho_memory_init();
 
+	pr_debug("M65832: before memblock_free_all\n");
 	memblock_free_all();
+	pr_debug("M65832: after memblock_free_all\n");
 	mem_init();
+	pr_debug("M65832: after mem_init\n");
 	kmem_cache_init();
+	pr_debug("M65832: after kmem_cache_init\n");
 	/*
 	 * page_owner must be initialized after buddy is ready, and also after
 	 * slab is ready so that stack_depot_init() works properly

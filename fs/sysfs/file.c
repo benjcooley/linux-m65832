@@ -274,7 +274,15 @@ int sysfs_add_file_mode_ns(struct kernfs_node *parent,
 		const struct attribute *attr, umode_t mode, kuid_t uid,
 		kgid_t gid, const void *ns)
 {
+#ifdef CONFIG_M65832
+	if (!parent || !attr || !attr->name || !parent->priv)
+		return -EINVAL;
+#endif
 	struct kobject *kobj = parent->priv;
+#ifdef CONFIG_M65832
+	if (!kobj->ktype)
+		return -EINVAL;
+#endif
 	const struct sysfs_ops *sysfs_ops = kobj->ktype->sysfs_ops;
 	struct lock_class_key *key = NULL;
 	const struct kernfs_ops *ops = NULL;

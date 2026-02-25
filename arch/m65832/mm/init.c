@@ -45,9 +45,15 @@ static const pgprot_t protection_map[16] = {
 DECLARE_VM_GET_PAGE_PROT
 
 /*
- * Kernel page directory (swapper_pg_dir)
+ * Kernel page directory.
+ * Normally this is swapper_pg_dir; we redirect init_mm.pgd to
+ * init_pg_dir (the live page table set up by head.S) in paging_init
+ * so that ioremap / vmalloc operate on the active page table.
  */
 pgd_t swapper_pg_dir[PTRS_PER_PGD] __page_aligned_bss;
+
+/* init_pg_dir lives in head.S BSS — it is the live page table. */
+extern pgd_t init_pg_dir[];
 
 /*
  * Empty zero page for COW
@@ -63,57 +69,23 @@ extern unsigned long min_low_pfn;
 extern unsigned long max_pfn;
 
 /*
- * Set up initial page tables for the kernel
- */
-static void __init setup_kernel_pagetables(void)
-{
-	unsigned long vaddr, paddr;
-	pgd_t *pgd;
-	p4d_t *p4d;
-	pud_t *pud;
-	pmd_t *pmd;
-	pte_t *pte;
-	unsigned long kernel_end_pfn;
-
-	pr_info("M65832: Setting up kernel page tables\n");
-
-	/* Clear swapper_pg_dir */
-	memset(swapper_pg_dir, 0, sizeof(swapper_pg_dir));
-
-	/*
-	 * Map kernel text, data, BSS
-	 * Virtual: PAGE_OFFSET + offset -> Physical: offset
-	 */
-	kernel_end_pfn = PFN_UP(__pa(_end));
-
-	for (paddr = 0; paddr < (kernel_end_pfn << PAGE_SHIFT); paddr += PAGE_SIZE) {
-		vaddr = (unsigned long)__va(paddr);
-
-		/* Walk the folded page table levels */
-		pgd = pgd_offset_k(vaddr);
-		p4d = p4d_offset(pgd, vaddr);
-		pud = pud_offset(p4d, vaddr);
-		pmd = pmd_offset(pud, vaddr);
-
-		/* Allocate PTE table if needed */
-		if (pmd_none(*pmd)) {
-			pte = memblock_alloc(PAGE_SIZE, PAGE_SIZE);
-			if (!pte)
-				panic("Failed to allocate PTE table");
-			memset(pte, 0, PAGE_SIZE);
-			set_pmd(pmd, __pmd(__pa(pte) | _PAGE_TABLE));
-		}
-
-		/* Map the page */
-		pte = pte_offset_kernel(pmd, vaddr);
-		set_pte(pte, pfn_pte(paddr >> PAGE_SHIFT, PAGE_KERNEL));
-	}
-
-	pr_info("M65832: Kernel mapped %lu pages\n", kernel_end_pfn);
-}
-
-/*
- * Initialize paging
+ * Initialize paging.
+ *
+ * head.S has already set up init_pg_dir with:
+ *   - Identity map: 0x00000000-0x007FFFFF (PGD[0..1])
+ *   - Peripheral identity map: 0x10000000-0x103FFFFF (PGD[64])
+ *   - Kernel linear map: PAGE_OFFSET..+64MB (PGD[512..527])
+ * and the PTBR points to init_pg_dir.
+ *
+ * Rather than building a duplicate page table in swapper_pg_dir and
+ * switching PTBR (which is fragile and triggers emulator issues), we
+ * redirect init_mm.pgd to point directly at init_pg_dir.  This way
+ * pgd_offset_k() returns entries in the live page table, and any new
+ * mappings created by ioremap_page_range / vmalloc take effect
+ * immediately — no PTBR switch needed.
+ *
+ * TODO: Proper transition to swapper_pg_dir once the emulator's PTBR
+ * switch path is debugged.  This will also reclaim init_pg_dir memory.
  */
 void __init paging_init(void)
 {
@@ -121,9 +93,6 @@ void __init paging_init(void)
 	unsigned long start_pfn, end_pfn;
 
 	pr_info("M65832: Initializing paging\n");
-
-	/* Set up page tables */
-	setup_kernel_pagetables();
 
 	/* Determine memory boundaries */
 	start_pfn = PFN_UP(memblock_start_of_DRAM());
@@ -133,9 +102,18 @@ void __init paging_init(void)
 	max_low_pfn = end_pfn;
 	max_pfn = end_pfn;
 
-	/* Set up zones */
+	/*
+	 * Point init_mm.pgd at the live page table so that all kernel
+	 * page-table operations (ioremap, vmalloc, etc.) go through
+	 * the page table the MMU is actually reading.
+	 */
+	init_mm.pgd = init_pg_dir;
+	pr_info("M65832: init_mm.pgd -> init_pg_dir (%p, phys %08lx)\n",
+		init_pg_dir, __pa(init_pg_dir));
+
+	/* Set up zone end PFNs (free_area_init takes max PFN per zone) */
 	memset(zones_size, 0, sizeof(zones_size));
-	zones_size[ZONE_DMA] = end_pfn - start_pfn;
+	zones_size[ZONE_DMA] = end_pfn;
 
 	/* Initialize memory zones */
 	free_area_init(zones_size);

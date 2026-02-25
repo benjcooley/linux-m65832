@@ -34,13 +34,19 @@
 #include "internal.h"
 #include "swap.h"
 
+#if defined(CONFIG_M65832) && defined(__clang__)
+#define M65832_UTIL_OPTNONE __attribute__((optnone))
+#else
+#define M65832_UTIL_OPTNONE
+#endif
+
 /**
  * kfree_const - conditionally free memory
  * @x: pointer to the memory
  *
  * Function calls kfree only if @x is not in .rodata section.
  */
-void kfree_const(const void *x)
+void M65832_UTIL_OPTNONE kfree_const(const void *x)
 {
 	if (!is_kernel_rodata((unsigned long)x))
 		kfree(x);

@@ -912,6 +912,11 @@ static inline void unix98_pty_init(void) { }
 
 static int __init pty_init(void)
 {
+#ifdef CONFIG_M65832
+	/* Bring-up: skip legacy PTY registration path (sysfs teardown faults). */
+	unix98_pty_init();
+	return 0;
+#endif
 	legacy_pty_init();
 	unix98_pty_init();
 	return 0;

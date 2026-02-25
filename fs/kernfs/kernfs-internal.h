@@ -71,11 +71,19 @@ struct kernfs_root {
 static inline struct kernfs_root *kernfs_root(const struct kernfs_node *kn)
 {
 	const struct kernfs_node *knp;
+#ifdef CONFIG_M65832
+	if (unlikely(!kn))
+		return NULL;
+#endif
 	/* if parent exists, it's always a dir; otherwise, @sd is a dir */
 	guard(rcu)();
 	knp = rcu_dereference(kn->__parent);
 	if (knp)
 		kn = knp;
+#ifdef CONFIG_M65832
+	if (unlikely(!kn))
+		return NULL;
+#endif
 	return kn->dir.root;
 }
 

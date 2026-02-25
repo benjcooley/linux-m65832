@@ -124,10 +124,11 @@ static irqreturn_t m65832_timer_interrupt(int irq, void *dev_id)
 {
 	struct clock_event_device *evt = &m65832_clockevent;
 
-	/* Clear interrupt flag (write 1 to IF bit to clear) */
-	if (timer_base)
-		writel(TIMER_CTRL_IF, timer_base + TIMER_CTRL);
-
+	/*
+	 * The IP bit was already cleared in do_IRQ before dispatching here.
+	 * Do not write TIMER_CTRL again — a bare TIMER_CTRL_IF write would
+	 * zero EN/PERIODIC/IE and disable the timer.
+	 */
 	evt->event_handler(evt);
 
 	return IRQ_HANDLED;
@@ -150,7 +151,7 @@ void __init time_init(void)
 {
 	int ret;
 
-	early_printk("M65832: Initializing timer\n");
+	pr_info("M65832: Initializing timer\n");
 
 	/* Get timer frequency from config or detect */
 	timer_frequency = CONFIG_M65832_TIMER_FREQ;
@@ -158,8 +159,7 @@ void __init time_init(void)
 	/* Map timer registers */
 	timer_base = ioremap(TIMER_BASE, 0x10);
 	if (!timer_base) {
-		pr_err("M65832: Failed to map timer\n");
-		return;
+		pr_warn("M65832: Failed to map timer, running without hardware timer\n");
 	}
 
 	/* Register clocksource */
@@ -177,13 +177,13 @@ void __init time_init(void)
 	clockevents_config_and_register(&m65832_clockevent, timer_frequency,
 					0x10, 0xFFFFFFFF);
 
-	/* Request timer IRQ (IRQ 5 or 6 typically) */
-	ret = request_irq(5, m65832_timer_interrupt, IRQF_TIMER,
-			  "m65832-timer", NULL);
-	if (ret) {
-		pr_err("M65832: Failed to request timer IRQ\n");
-		return;
+	/* Request timer IRQ */
+	if (timer_base) {
+		int ret = request_irq(5, m65832_timer_interrupt, IRQF_TIMER,
+				      "m65832-timer", NULL);
+		if (ret)
+			pr_err("M65832: Failed to request timer IRQ: %d\n", ret);
 	}
 
-	early_printk("M65832: Timer initialized at %lu Hz\n", timer_frequency);
+	pr_info("M65832: Timer initialized at %lu Hz\n", timer_frequency);
 }

@@ -630,6 +630,12 @@ static int __init rdinit_setup(char *str)
 }
 __setup("rdinit=", rdinit_setup);
 
+#if defined(CONFIG_M65832) && defined(__clang__)
+#define M65832_INIT_OPTNONE __attribute__((optnone))
+#else
+#define M65832_INIT_OPTNONE
+#endif
+
 #ifndef CONFIG_SMP
 static inline void setup_nr_cpu_ids(void) { }
 static inline void smp_prepare_cpus(unsigned int maxcpus) { }
@@ -708,18 +714,27 @@ static void __init setup_command_line(char *command_line)
 
 static __initdata DECLARE_COMPLETION(kthreadd_done);
 
-static noinline void __ref __noreturn rest_init(void)
+#if defined(CONFIG_M65832) && defined(__clang__)
+#define M65832_MAIN_OPTNONE __attribute__((optnone))
+#else
+#define M65832_MAIN_OPTNONE
+#endif
+
+static noinline M65832_MAIN_OPTNONE void __ref __noreturn rest_init(void)
 {
 	struct task_struct *tsk;
 	int pid;
 
+	pr_info("M65832: rest_init enter\n");
 	rcu_scheduler_starting();
+	pr_info("M65832: rest_init past rcu_scheduler_starting\n");
 	/*
 	 * We need to spawn init first so that it obtains pid 1, however
 	 * the init task will end up wanting to create kthreads, which, if
 	 * we schedule it before we create kthreadd, will OOPS.
 	 */
 	pid = user_mode_thread(kernel_init, NULL, CLONE_FS);
+	pr_info("M65832: rest_init after user_mode_thread pid=%d\n", pid);
 	/*
 	 * Pin init on the boot CPU. Task migration is not properly working
 	 * until sched_init_smp() has been run. It will set the allowed
@@ -727,14 +742,26 @@ static noinline void __ref __noreturn rest_init(void)
 	 */
 	rcu_read_lock();
 	tsk = find_task_by_pid_ns(pid, &init_pid_ns);
-	tsk->flags |= PF_NO_SETAFFINITY;
-	set_cpus_allowed_ptr(tsk, cpumask_of(smp_processor_id()));
+	if (tsk) {
+		WRITE_ONCE(tsk->__state, TASK_RUNNING);
+		pr_info("M65832: pid1 pre-sched ksp=%08lx start=%08lx started=%lu\n",
+			tsk->thread.ksp, tsk->thread.start_pc, tsk->thread.started);
+		tsk->flags |= PF_NO_SETAFFINITY;
+		set_cpus_allowed_ptr(tsk, cpumask_of(smp_processor_id()));
+	}
 	rcu_read_unlock();
 
 	numa_default_policy();
 	pid = kernel_thread(kthreadd, NULL, NULL, CLONE_FS | CLONE_FILES);
+	pr_info("M65832: rest_init after kernel_thread pid=%d\n", pid);
 	rcu_read_lock();
 	kthreadd_task = find_task_by_pid_ns(pid, &init_pid_ns);
+	if (kthreadd_task) {
+		WRITE_ONCE(kthreadd_task->__state, TASK_RUNNING);
+		pr_info("M65832: pid2 pre-sched ksp=%08lx start=%08lx started=%lu\n",
+			kthreadd_task->thread.ksp, kthreadd_task->thread.start_pc,
+			kthreadd_task->thread.started);
+	}
 	rcu_read_unlock();
 
 	/*
@@ -747,12 +774,24 @@ static noinline void __ref __noreturn rest_init(void)
 	system_state = SYSTEM_SCHEDULING;
 
 	complete(&kthreadd_done);
+	pr_info("M65832: rest_init after complete\n");
 
 	/*
 	 * The boot idle thread must execute schedule()
 	 * at least once to get things moving:
 	 */
 	schedule_preempt_disabled();
+	pr_info("M65832: rest_init after schedule_preempt_disabled\n");
+	rcu_read_lock();
+	tsk = find_task_by_pid_ns(1, &init_pid_ns);
+	if (tsk)
+		pr_info("M65832: pid1 comm=%s state=%u flags=%x\n",
+			tsk->comm, tsk->__state, tsk->flags);
+	tsk = find_task_by_pid_ns(2, &init_pid_ns);
+	if (tsk)
+		pr_info("M65832: pid2 comm=%s state=%u flags=%x\n",
+			tsk->comm, tsk->__state, tsk->flags);
+	rcu_read_unlock();
 	/* Call into cpu_idle with preempt disabled */
 	cpu_startup_entry(CPUHP_ONLINE);
 }
@@ -1025,21 +1064,33 @@ void start_kernel(void)
 	page_address_init();
 	pr_notice("%s", linux_banner);
 	setup_arch(&command_line);
+	pr_debug("M65832: after setup_arch\n");
 	/* Static keys and static calls are needed by LSMs */
 	jump_label_init();
+	pr_debug("M65832: after jump_label_init\n");
 	static_call_init();
+	pr_debug("M65832: after static_call_init\n");
 	early_security_init();
+	pr_debug("M65832: after early_security_init\n");
 	setup_boot_config();
+	pr_debug("M65832: after setup_boot_config\n");
 	setup_command_line(command_line);
+	pr_debug("M65832: after setup_command_line\n");
 	setup_nr_cpu_ids();
+	pr_debug("M65832: after setup_nr_cpu_ids\n");
 	setup_per_cpu_areas();
+	pr_debug("M65832: after setup_per_cpu_areas\n");
 	smp_prepare_boot_cpu();	/* arch-specific boot-cpu hooks */
+	pr_debug("M65832: after smp_prepare_boot_cpu\n");
 	early_numa_node_init();
+	pr_debug("M65832: after early_numa_node_init\n");
 	boot_cpu_hotplug_init();
+	pr_debug("M65832: after boot_cpu_hotplug_init\n");
 
 	print_kernel_cmdline(saved_command_line);
 	/* parameters may set static keys */
 	parse_early_param();
+	pr_debug("M65832: after parse_early_param\n");
 	after_dashes = parse_args("Booting kernel",
 				  static_command_line, __start___param,
 				  __stop___param - __start___param,
@@ -1054,15 +1105,20 @@ void start_kernel(void)
 
 	/* Architectural and non-timekeeping rng init, before allocator init */
 	random_init_early(command_line);
+	pr_debug("M65832: after random_init_early\n");
 
 	/*
 	 * These use large bootmem allocations and must precede
 	 * initalization of page allocator
 	 */
 	setup_log_buf(0);
+	pr_debug("M65832: after setup_log_buf\n");
 	vfs_caches_init_early();
+	pr_debug("M65832: after vfs_caches_init_early\n");
 	sort_main_extable();
+	pr_debug("M65832: after sort_main_extable\n");
 	trap_init();
+	pr_debug("M65832: after trap_init\n");
 	mm_core_init();
 	maple_tree_init();
 	poking_init();
@@ -1117,13 +1173,16 @@ void start_kernel(void)
 	softirq_init();
 	timekeeping_init();
 	time_init();
+	pr_info("M65832: past time_init\n");
 
 	/* This must be after timekeeping is initialized */
 	random_init();
+	pr_info("M65832: past random_init\n");
 
 	/* These make use of the fully initialized rng */
 	kfence_init();
 	boot_init_stack_canary();
+	pr_info("M65832: past stack_canary\n");
 
 	perf_event_init();
 	profile_init();
@@ -1131,21 +1190,33 @@ void start_kernel(void)
 	WARN(!irqs_disabled(), "Interrupts were enabled early\n");
 
 	early_boot_irqs_disabled = false;
+	pr_info("M65832: enabling IRQs\n");
 	local_irq_enable();
+#ifdef CONFIG_M65832
+	/* Bring-up: defer IRQ handling until console setup settles. */
+	local_irq_disable();
+	pr_info("M65832: deferring IRQs until console_init completes\n");
+#endif
+	pr_info("M65832: past local_irq_enable\n");
 
 	kmem_cache_init_late();
+	pr_info("M65832: past kmem_cache_init_late\n");
 
 	/*
 	 * HACK ALERT! This is early. We're enabling the console before
 	 * we've done PCI setups etc, and console_init() must be aware of
 	 * this. But we do want output early, in case something goes wrong.
 	 */
+	pr_info("M65832: pre-console format probe value=%d\n", 1);
+	pr_info("M65832: entering console_init\n");
 	console_init();
+	pr_info("M65832: past console_init\n");
 	if (panic_later)
 		panic("Too many boot %s vars at `%s'", panic_later,
 		      panic_param);
 
 	lockdep_init();
+	pr_info("M65832: past lockdep_init\n");
 
 	/*
 	 * Need to run this when irqs are enabled, because it wants
@@ -1153,6 +1224,7 @@ void start_kernel(void)
 	 * too:
 	 */
 	locking_selftest();
+	pr_info("M65832: past locking_selftest\n");
 
 #ifdef CONFIG_BLK_DEV_INITRD
 	if (initrd_start && !initrd_below_start_ok &&
@@ -1163,46 +1235,85 @@ void start_kernel(void)
 		initrd_start = 0;
 	}
 #endif
+	pr_info("M65832: past initrd check\n");
 	setup_per_cpu_pageset();
+	pr_info("M65832: past setup_per_cpu_pageset\n");
 	numa_policy_init();
+	pr_info("M65832: past numa_policy_init\n");
 	acpi_early_init();
+	pr_info("M65832: past acpi_early_init\n");
+	pr_info("M65832: before late_time_init\n");
 	if (late_time_init)
 		late_time_init();
+	pr_info("M65832: past late_time_init\n");
 	sched_clock_init();
+	pr_info("M65832: past sched_clock_init\n");
 	calibrate_delay();
+	pr_info("M65832: past calibrate_delay\n");
+#ifdef CONFIG_M65832
+	/* Keep IRQs masked beyond early boot while IRQ entry/return is under debug. */
+#endif
 
 	arch_cpu_finalize_init();
+	pr_info("M65832: past arch_cpu_finalize_init\n");
 
 	pid_idr_init();
+	pr_info("M65832: past pid_idr_init\n");
 	anon_vma_init();
+	pr_info("M65832: past anon_vma_init\n");
 	thread_stack_cache_init();
+	pr_info("M65832: past thread_stack_cache_init\n");
 	cred_init();
+	pr_info("M65832: past cred_init\n");
 	fork_init();
+	pr_info("M65832: past fork_init\n");
 	proc_caches_init();
+	pr_info("M65832: past proc_caches_init\n");
 	uts_ns_init();
+	pr_info("M65832: past uts_ns_init\n");
 	time_ns_init();
+	pr_info("M65832: past time_ns_init\n");
 	key_init();
+	pr_info("M65832: past key_init\n");
 	security_init();
+	pr_info("M65832: past security_init\n");
 	dbg_late_init();
+	pr_info("M65832: past dbg_late_init\n");
 	net_ns_init();
+	pr_info("M65832: past net_ns_init\n");
 	vfs_caches_init();
+	pr_info("M65832: past vfs_caches_init\n");
 	pagecache_init();
+	pr_info("M65832: past pagecache_init\n");
 	signals_init();
+	pr_info("M65832: past signals_init\n");
 	seq_file_init();
+	pr_info("M65832: past seq_file_init\n");
 	proc_root_init();
+	pr_info("M65832: past proc_root_init\n");
 	nsfs_init();
+	pr_info("M65832: past nsfs_init\n");
 	pidfs_init();
+	pr_info("M65832: past pidfs_init\n");
 	cpuset_init();
+	pr_info("M65832: past cpuset_init\n");
 	mem_cgroup_init();
+	pr_info("M65832: past mem_cgroup_init\n");
 	cgroup_init();
+	pr_info("M65832: past cgroup_init\n");
 	taskstats_init_early();
+	pr_info("M65832: past taskstats_init_early\n");
 	delayacct_init();
+	pr_info("M65832: past delayacct_init\n");
 
 	acpi_subsystem_init();
+	pr_info("M65832: past acpi_subsystem_init\n");
 	arch_post_acpi_subsys_init();
+	pr_info("M65832: past arch_post_acpi_subsys_init\n");
 	kcsan_init();
-
+	pr_info("M65832: past kcsan_init\n");
 	/* Do the rest non-__init'ed, we're now alive */
+	pr_info("M65832: before rest_init\n");
 	rest_init();
 
 	/*
@@ -1513,7 +1624,7 @@ static int try_to_run_init_process(const char *init_filename)
 	return ret;
 }
 
-static noinline void __init kernel_init_freeable(void);
+static noinline M65832_INIT_OPTNONE void __init kernel_init_freeable(void);
 
 #if defined(CONFIG_STRICT_KERNEL_RWX) || defined(CONFIG_STRICT_MODULE_RWX)
 bool rodata_enabled __ro_after_init = true;
@@ -1574,6 +1685,9 @@ static int __ref kernel_init(void *unused)
 	 * Wait until kthreadd is all set-up.
 	 */
 	wait_for_completion(&kthreadd_done);
+#ifdef CONFIG_M65832
+	pr_info("M65832: kernel_init past kthreadd_done\n");
+#endif
 
 	kernel_init_freeable();
 	/* need to finish all async __init code before freeing the memory */
@@ -1656,7 +1770,7 @@ void __init console_on_rootfs(void)
 	fput(file);
 }
 
-static noinline void __init kernel_init_freeable(void)
+static noinline M65832_INIT_OPTNONE void __init kernel_init_freeable(void)
 {
 	/* Now the scheduler is fully set up and can do blocking allocations */
 	gfp_allowed_mask = __GFP_BITS_MASK;

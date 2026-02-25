@@ -169,7 +169,11 @@ static int __xlate_proc_name(const char *name, struct proc_dir_entry **ret,
 	while ((next = strchr(cp, '/')) != NULL) {
 		de = pde_subdir_find(de, cp, next - cp);
 		if (!de) {
+#ifdef CONFIG_M65832
+			pr_warn_once("proc: missing name '%s'\n", name);
+#else
 			WARN(1, "name '%s'\n", name);
+#endif
 			return -ENOENT;
 		}
 		cp = next + 1;
@@ -429,16 +433,28 @@ static struct proc_dir_entry *__proc_create(struct proc_dir_entry **parent,
 	qstr.name = fn;
 	qstr.len = strlen(fn);
 	if (qstr.len == 0 || qstr.len >= 256) {
+#ifdef CONFIG_M65832
+		return NULL;
+#else
 		WARN(1, "name len %u\n", qstr.len);
 		return NULL;
+#endif
 	}
 	if (qstr.len == 1 && fn[0] == '.') {
+#ifdef CONFIG_M65832
+		return NULL;
+#else
 		WARN(1, "name '.'\n");
 		return NULL;
+#endif
 	}
 	if (qstr.len == 2 && fn[0] == '.' && fn[1] == '.') {
+#ifdef CONFIG_M65832
+		return NULL;
+#else
 		WARN(1, "name '..'\n");
 		return NULL;
+#endif
 	}
 	if (*parent == &proc_root && name_to_int(&qstr) != ~0U) {
 		WARN(1, "create '/proc/%s' by hand\n", qstr.name);

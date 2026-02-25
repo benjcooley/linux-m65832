@@ -736,9 +736,15 @@ void mt_cache_shrink(void);
 #define MT_BUG_ON(__tree, __x)		BUG_ON(__x)
 #define MAS_BUG_ON(__mas, __x)		BUG_ON(__x)
 #define MAS_WR_BUG_ON(__mas, __x)	BUG_ON(__x)
+#ifdef CONFIG_M65832
+#define MT_WARN_ON(__tree, __x)		unlikely(!!(__x))
+#define MAS_WARN_ON(__mas, __x)		unlikely(!!(__x))
+#define MAS_WR_WARN_ON(__mas, __x)	unlikely(!!(__x))
+#else
 #define MT_WARN_ON(__tree, __x)		WARN_ON(__x)
 #define MAS_WARN_ON(__mas, __x)		WARN_ON(__x)
 #define MAS_WR_WARN_ON(__mas, __x)	WARN_ON(__x)
+#endif
 #endif /* CONFIG_DEBUG_MAPLE_TREE */
 
 /**

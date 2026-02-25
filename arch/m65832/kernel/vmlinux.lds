@@ -57,7 +57,7 @@ SECTIONS
  _sdata = .;
  . = ALIGN((1 << 12));
  .data : AT(ADDR(.data) - (0x80000000 - 0x00100000)) {
-  . = ALIGN(((1 << 12) << 1)); __start_init_stack = .; init_thread_union = .; init_stack = .; KEEP(*(.data..init_thread_info)) . = __start_init_stack + ((1 << 12) << 1); __end_init_stack = .;
+  . = ALIGN(((1 << 12) << 4)); __start_init_stack = .; init_thread_union = .; init_stack = .; KEEP(*(.data..init_thread_info)) . = __start_init_stack + ((1 << 12) << 4); __end_init_stack = .;
   *(.xiptext) *(.data .data.[0-9a-zA-Z_]* .data.rel.* .data..L* .data..compoundliteral* .data.$__unnamed_* .data.$L*) *(.data..decrypted) *(.ref.data) *(.data..shared_aligned) *(.data..unlikely) __start_once = .; *(.data..once) __end_once = .; *(.data..do_once) . = ALIGN(32); *(__tracepoints) . = ALIGN(8); __start___dyndbg_classes = .; KEEP(*(__dyndbg_classes)) __stop___dyndbg_classes = .; __start___dyndbg = .; KEEP(*(__dyndbg)) __stop___dyndbg = .; . = ALIGN(8); __kunit_suites_start = .; KEEP(*(.kunit_test_suites)) __kunit_suites_end = .;
   CONSTRUCTORS
  }

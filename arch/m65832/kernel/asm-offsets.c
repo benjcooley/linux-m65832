@@ -38,7 +38,13 @@ void asm_offsets(void)
 	OFFSET(THREAD_R21, thread_struct, r21);
 	OFFSET(THREAD_R22, thread_struct, r22);
 	OFFSET(THREAD_R23, thread_struct, r23);
+	OFFSET(THREAD_R24, thread_struct, r24);
+	OFFSET(THREAD_R25, thread_struct, r25);
 	OFFSET(THREAD_B, thread_struct, b);	/* Frame pointer (callee-saved) */
+	OFFSET(THREAD_START_PC, thread_struct, start_pc);
+	OFFSET(THREAD_START_ARG0, thread_struct, start_arg0);
+	OFFSET(THREAD_START_ARG1, thread_struct, start_arg1);
+	OFFSET(THREAD_STARTED, thread_struct, started);
 	OFFSET(THREAD_FAULT_ADDRESS, thread_struct, fault_address);
 	OFFSET(THREAD_FAULT_CODE, thread_struct, fault_code);
 	DEFINE(THREAD_STRUCT_SIZE, sizeof(struct thread_struct));
@@ -104,7 +110,7 @@ void asm_offsets(void)
 	/* Status register bits */
 	DEFINE(SR_IRQ_DISABLE_ASM, SR_IRQ_DISABLE);
 	DEFINE(SR_SUPERVISOR_ASM, SR_SUPERVISOR);
-	DEFINE(SR_MMU_ENABLE_ASM, SR_MMU_ENABLE);
+	DEFINE(SR_COMPAT_ASM, SR_COMPAT);
 	DEFINE(SR_USER_MODE_ASM, SR_USER_MODE);
 	DEFINE(SR_KERNEL_MODE_ASM, SR_KERNEL_MODE);
 

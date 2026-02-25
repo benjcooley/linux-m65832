@@ -169,6 +169,14 @@ struct pid *alloc_pid(struct pid_namespace *ns, pid_t *set_tid,
 	struct upid *upid;
 	int retval = -ENOMEM;
 
+#ifdef CONFIG_M65832
+	/*
+	 * Bring-up fallback: force init_pid_ns to avoid transient/corrupted
+	 * namespace pointers in early thread creation.
+	 */
+	ns = &init_pid_ns;
+#endif
+
 	/*
 	 * set_tid_size contains the size of the set_tid array. Starting at
 	 * the most nested currently active PID namespace it tells alloc_pid()

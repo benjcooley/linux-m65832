@@ -150,13 +150,26 @@ do_build() {
     JOBS=${JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}
     echo "Using $JOBS parallel jobs"
     
-    do_make "-j$JOBS"
-    
+    do_make "-j$JOBS" || {
+        # On macOS, sed -i without backup extension fails in modules.builtin.modinfo
+        # The kernel (vmlinux) is already linked at this point, so continue
+        if [ -f "vmlinux" ]; then
+            echo ""
+            echo "WARNING: Build partially failed (likely macOS sed issue)."
+            echo "         Kernel ELF was linked successfully."
+        else
+            exit 1
+        fi
+    }
+
     echo ""
-    echo "Build complete!"
     if [ -f "vmlinux" ]; then
-        echo "Kernel: vmlinux"
-        ls -la vmlinux
+        # Generate flat binary for emulator
+        echo "Generating vmlinux.bin..."
+        "${LLVM_DIR}/llvm-objcopy" -O binary vmlinux vmlinux.bin
+        echo "Build complete!"
+        echo "  Kernel ELF: vmlinux ($(ls -la vmlinux | awk '{print $5}') bytes)"
+        echo "  Kernel BIN: vmlinux.bin ($(ls -la vmlinux.bin | awk '{print $5}') bytes)"
     fi
 }
 

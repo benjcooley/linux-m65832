@@ -476,20 +476,39 @@ EXPORT_SYMBOL_GPL(sched_clock_idle_wakeup_event);
 
 #else /* !CONFIG_HAVE_UNSTABLE_SCHED_CLOCK: */
 
-void __init sched_clock_init(void)
+#if defined(CONFIG_M65832) && defined(__clang__)
+#define M65832_SCHED_CLOCK_OPTNONE __attribute__((optnone))
+#else
+#define M65832_SCHED_CLOCK_OPTNONE
+#endif
+
+void __init M65832_SCHED_CLOCK_OPTNONE sched_clock_init(void)
 {
+#ifdef CONFIG_M65832
+	/*
+	 * Probe/workaround: static key patching path appears unstable on M65832
+	 * during early boot. Keep sched clock initialization but skip branch-key
+	 * toggle for now.
+	 */
+	generic_sched_clock_init();
+#else
 	static_branch_inc(&sched_clock_running);
 	local_irq_disable();
 	generic_sched_clock_init();
 	local_irq_enable();
+#endif
 }
 
 notrace u64 sched_clock_cpu(int cpu)
 {
+#ifdef CONFIG_M65832
+	return sched_clock();
+#else
 	if (!static_branch_likely(&sched_clock_running))
 		return 0;
 
 	return sched_clock();
+#endif
 }
 
 #endif /* !CONFIG_HAVE_UNSTABLE_SCHED_CLOCK */

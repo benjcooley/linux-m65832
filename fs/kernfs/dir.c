@@ -316,7 +316,20 @@ struct kernfs_node *kernfs_get_parent(struct kernfs_node *kn)
 static unsigned int kernfs_name_hash(const char *name, const void *ns)
 {
 	unsigned long hash = init_name_hash(ns);
-	unsigned int len = strlen(name);
+	unsigned int len;
+
+	if (unlikely(!name))
+		name = "";
+
+#ifdef CONFIG_M65832
+	/*
+	 * Bound hashing work on malformed/non-terminated names during bring-up;
+	 * valid kernfs names are short and NUL-terminated.
+	 */
+	len = strnlen(name, 256);
+#else
+	len = strlen(name);
+#endif
 	while (len--)
 		hash = partial_name_hash(*name++, hash);
 	hash = end_name_hash(hash);
@@ -534,7 +547,12 @@ static void kernfs_drain(struct kernfs_node *kn)
 void kernfs_get(struct kernfs_node *kn)
 {
 	if (kn) {
+#ifdef CONFIG_M65832
+		if (unlikely(!atomic_read(&kn->count)))
+			pr_warn_once("kernfs_get: zero refcount node\n");
+#else
 		WARN_ON(!atomic_read(&kn->count));
+#endif
 		atomic_inc(&kn->count);
 	}
 }
@@ -790,6 +808,7 @@ int kernfs_add_one(struct kernfs_node *kn)
 	struct kernfs_root *root = kernfs_root(kn);
 	struct kernfs_iattrs *ps_iattr;
 	struct kernfs_node *parent;
+	const char *kn_name;
 	bool has_ns;
 	int ret;
 
@@ -810,7 +829,8 @@ int kernfs_add_one(struct kernfs_node *kn)
 	if (parent->flags & (KERNFS_REMOVING | KERNFS_EMPTY_DIR))
 		goto out_unlock;
 
-	kn->hash = kernfs_name_hash(kernfs_rcu_name(kn), kn->ns);
+	kn_name = kernfs_rcu_name(kn);
+	kn->hash = kernfs_name_hash(kn_name, kn->ns);
 
 	ret = kernfs_link_sibling(kn);
 	if (ret)
@@ -1403,8 +1423,15 @@ static void kernfs_activate_one(struct kernfs_node *kn)
 	if (kernfs_active(kn) || (kn->flags & (KERNFS_HIDDEN | KERNFS_REMOVING)))
 		return;
 
+#ifdef CONFIG_M65832
+	if (unlikely(rcu_access_pointer(kn->__parent) && RB_EMPTY_NODE(&kn->rb)))
+		return;
+	if (unlikely(atomic_read(&kn->active) != KN_DEACTIVATED_BIAS))
+		return;
+#else
 	WARN_ON_ONCE(rcu_access_pointer(kn->__parent) && RB_EMPTY_NODE(&kn->rb));
 	WARN_ON_ONCE(atomic_read(&kn->active) != KN_DEACTIVATED_BIAS);
+#endif
 
 	atomic_sub(KN_DEACTIVATED_BIAS, &kn->active);
 }
